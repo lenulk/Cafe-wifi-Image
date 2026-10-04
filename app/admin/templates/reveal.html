@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}เลขประจำตัวประชาชน{% endblock %}
+{% block body %}
+<div class="card" style="max-width:520px">
+  <h1>เลขประจำตัวประชาชน</h1>
+  <div class="msg err">
+    การเปิดเผยครั้งนี้ถูกบันทึกลง audit log แล้ว (ผู้ใช้ {{ current_user }}, เหตุผล: {{ reason }})
+  </div>
+  <div class="cred">{{ natid }}</div>
+  <p class="hint">ปกติระบบแสดงเป็น {{ masked }} เท่านั้น</p>
+  <p><a class="btn" href="{{ url_for('customers') }}">กลับ</a></p>
+</div>
+{% endblock %}

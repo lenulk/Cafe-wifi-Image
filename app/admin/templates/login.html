@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}เข้าสู่ระบบ{% endblock %}
+{% block body %}
+<div class="card" style="max-width:420px;margin:3rem auto">
+  <h1>เข้าสู่ระบบพนักงาน</h1>
+  {% if error %}<div class="msg err">{{ error }}</div>{% endif %}
+  <form method="post" autocomplete="off">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="username">ชื่อผู้ใช้</label>
+    <input type="text" id="username" name="username" required autofocus>
+    <label for="password">รหัสผ่าน</label>
+    <input type="password" id="password" name="password" required>
+    <p><button type="submit">เข้าสู่ระบบ</button></p>
+  </form>
+</div>
+{% endblock %}

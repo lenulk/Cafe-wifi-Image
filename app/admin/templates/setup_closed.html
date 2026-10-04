@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}ตั้งค่าเสร็จแล้ว{% endblock %}
+{% block body %}
+<div class="card">
+  <h1>ตั้งค่าเสร็จเรียบร้อยแล้ว</h1>
+  <div class="msg ok">ระบบนี้มีบัญชีผู้ดูแลอยู่แล้ว หน้าตั้งค่าครั้งแรกจึงถูกปิดถาวร</div>
+  <p>หากลืมรหัสผ่านผู้ดูแลระบบ ให้รีเซ็ตจากเครื่อง gateway โดยตรง:</p>
+  <pre class="mono">sudo /opt/cafe-wifi/venv/bin/python -m tools.reset_admin &lt;username&gt;</pre>
+  <p><a class="btn" href="{{ url_for('login') }}">ไปหน้าเข้าสู่ระบบ</a></p>
+</div>
+{% endblock %}

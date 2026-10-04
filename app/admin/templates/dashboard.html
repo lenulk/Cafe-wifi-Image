@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}แดชบอร์ด{% endblock %}
+{% from "_device.html" import device_name, usage %}
+{% block body %}
+<h1>ภาพรวม</h1>
+<div class="grid">
+  <div class="stat"><b>{{ stats.online_now or 0 }}</b><span>กำลังใช้งานอยู่</span></div>
+  <div class="stat"><b>{{ stats.active_vouchers or 0 }}</b><span>สิทธิ์ที่ยังใช้ได้</span></div>
+  <div class="stat"><b>{{ stats.issued_today or 0 }}</b><span>อนุมัติสิทธิ์ใหม่วันนี้</span></div>
+  <div class="stat"><b>{{ stats.customers or 0 }}</b><span>ลูกค้าสะสม</span></div>
+</div>
+
+<div class="card" style="margin-top:1rem">
+  <style>
+    .netbar{display:flex;height:28px;border-radius:8px;overflow:hidden;background:var(--line);margin:.75rem 0 .5rem}
+    .netbar span{display:block;height:100%}
+    .net-identified{background:var(--ok)} .net-pending{background:var(--warn)} .net-unknown{background:#8a8f98}
+    .netlegend{display:flex;flex-wrap:wrap;gap:.5rem 1.5rem;font-size:.95rem}
+    .netlegend i{display:inline-block;width:.8rem;height:.8rem;border-radius:3px;margin-right:.35rem;vertical-align:-1px}
+    .netlegend b{font-size:1.25rem;margin-right:.2rem}
+  </style>
+  {% set c = net.counts %}
+  {% set total = net.pool or net.leased or 1 %}
+  <h2 style="margin-bottom:.25rem">อุปกรณ์บนเครือข่ายตอนนี้</h2>
+  <p style="margin:0">แจก IP ไปแล้ว <b style="font-size:1.4rem">{{ net.leased }}</b>
+    {% if net.pool %}จาก {{ net.pool }} <span class="hint">(ว่าง {{ net.free }} · ใช้ไป {{ (net.leased * 100 / net.pool)|round(0)|int }}%)</span>{% endif %}</p>
+  <div class="netbar" role="img"
+       aria-label="ระบุตัวแล้ว {{ c.identified }}, รออนุมัติ {{ c.pending }}, ยังไม่ระบุตัว {{ c.unknown }}{% if net.pool %}, IP ว่าง {{ net.free }}{% endif %}">
+    {% for k in ('identified', 'pending', 'unknown') %}{% if c[k] %}
+    <span class="net-{{ k }}" style="width:{{ (c[k] * 100 / total)|round(2) }}%;min-width:6px"></span>
+    {% endif %}{% endfor %}
+  </div>
+  <div class="netlegend">
+    <span><i class="net-identified"></i><b>{{ c.identified }}</b> ระบุตัวแล้ว (ใช้เน็ตได้)</span>
+    <span><i class="net-pending"></i><b>{{ c.pending }}</b> รออนุมัติ</span>
+    <span><i class="net-unknown"></i><b>{{ c.unknown }}</b> ยังไม่ระบุตัว (ต่อ Wi-Fi แต่ยังไม่ได้รับสิทธิ์)</span>
+    {% if net.pool %}<span><i style="background:var(--line)"></i><b>{{ net.free }}</b> IP ว่าง</span>{% endif %}
+  </div>
+  <p style="margin:.6rem 0 0">เครื่องที่ออนไลน์อยู่ใช้เน็ตรวม <b style="font-size:1.2rem">{{ net.total_usage|human_bytes }}</b>
+    <span class="hint">(นับตั้งแต่ได้รับสิทธิ์รอบนี้)</span></p>
+
+  {% if net.devices %}
+  <details style="margin-top:.75rem" {{ 'open' if net.devices|length <= 10 }}>
+    <summary style="cursor:pointer">ดูรายการเครื่อง ({{ net.devices|length }})</summary>
+    <div style="overflow-x:auto">
+    <table style="margin-top:.5rem">
+      <tr><th>สถานะ</th><th>เครื่อง</th><th>IP</th><th>ลูกค้า</th><th>ใช้ไป</th></tr>
+      {% for d in net.devices %}
+      <tr>
+        <td>{% if d.kind == 'identified' %}<span class="badge ok">ระบุตัวแล้ว</span>
+            {% elif d.kind == 'pending' %}<span class="badge warn">รออนุมัติ {{ d.code }}</span>
+            {% else %}<span class="badge" style="background:var(--line)">ยังไม่ระบุตัว</span>{% endif %}</td>
+        <td>{{ device_name(d) }}</td>
+        <td class="mono">{{ d.ip }}</td>
+        <td>{% if d.natid_masked %}<span class="mono">{{ d.natid_masked }}</span>
+            {% elif d.past_owner %}<span class="hint">เคยใช้สิทธิ์ของ {{ d.past_owner }}</span>
+            {% else %}<span class="hint">-</span>{% endif %}</td>
+        <td>{{ usage(d.usage) if d.kind == 'identified' else '' }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    </div>
+  </details>
+  {% else %}
+  <p class="hint">ยังไม่มีเครื่องต่อ Wi-Fi (หรืออ่านข้อมูล DHCP ไม่ได้)</p>
+  {% endif %}
+</div>
+
+<div class="card" style="margin-top:1rem">
+  <h2>สิทธิ์ที่อนุมัติล่าสุด</h2>
+  <div style="overflow-x:auto">
+  <table>
+    <tr><th>ลูกค้า</th><th>เครื่อง</th><th>ใช้เน็ตไป</th><th>เริ่ม</th><th>หมดเวลา</th><th>สถานะ</th><th>ผู้อนุมัติ</th><th></th></tr>
+    {% for r in recent %}
+    {% set live = r.status == 'active' and r.valid_until > now %}
+    <tr>
+      <td class="mono" title="สิทธิ์ {{ r.username }}">{{ r.natid_masked }}</td>
+      <td>
+        {% for d in r.devices %}<div>{{ device_name(d) }}</div>
+        {% else %}<span class="hint">ยังไม่มีเครื่องเข้าใช้</span>{% endfor %}
+        <div class="hint">{{ r.devices|length }}/{{ r.max_devices }} เครื่อง</div>
+      </td>
+      <td>{{ usage(r.usage, r.quota_mb) }}</td>
+      <td>{{ r.issued_at.strftime('%d/%m %H:%M') }}</td>
+      <td>{{ r.valid_until.strftime('%d/%m %H:%M') }}</td>
+      <td>
+        {% if live %}<span class="badge ok">ใช้งานได้</span>
+        {% elif r.status == 'revoked' %}<span class="badge err">ปิดสิทธิ์แล้ว</span>
+        {% elif r.status == 'used_up' %}<span class="badge warn">โควตาหมด</span>
+        {% else %}<span class="badge">หมดเวลา</span>{% endif %}
+      </td>
+      <td>{{ r.issued_by }}</td>
+      <td>
+        {% if live %}
+        <form method="post" action="{{ url_for('extend_voucher', vid=r.id) }}"
+              style="display:flex;gap:.3rem;margin-bottom:.35rem">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="ghost" type="submit" name="minutes" value="60" title="ต่อเวลา 1 ชั่วโมง">+1 ชม.</button>
+          <button class="ghost" type="submit" name="minutes" value="30" title="ต่อเวลา 30 นาที">+30 น.</button>
+        </form>
+        {% endif %}
+        {% if r.status == 'active' %}
+        <form method="post" action="{{ url_for('revoke_voucher', vid=r.id) }}"
+              onsubmit="return confirm('ปิดสิทธิ์ของลูกค้า {{ r.natid_masked }} ใช่ไหม? ทุกเครื่องในสิทธิ์นี้จะหลุดจากเน็ตภายใน 5 นาที
+(ถ้าจะห้ามลูกค้าคนนี้ใช้อีก ให้ไปที่หน้าลูกค้า → ระงับ)')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="ghost" type="submit">ปิดสิทธิ์</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="8" class="hint">ยังไม่มีการอนุมัติ</td></tr>
+    {% endfor %}
+  </table>
+  </div>
+</div>
+
+<div class="card" style="margin-top:1rem">
+  <h2>ความถูกต้องของ log (hash chain)</h2>
+  {% if current_role == 'admin' %}
+  <p class="hint">ตรวจว่าไฟล์ log ที่ผนึกไว้ (§6.1) ยังไม่ถูกแก้ไขเลยตั้งแต่ผนึก</p>
+  <form method="post" action="{{ url_for('verify_log_integrity') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit">ตรวจสอบความถูกต้องของ log</button>
+  </form>
+  {% else %}<span class="hint">เฉพาะ admin</span>{% endif %}
+</div>
+{% endblock %}

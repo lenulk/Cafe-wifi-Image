@@ -1,0 +1,14 @@
+{% extends "setup_base.html" %}
+{% block body %}
+<div class="card">
+  <h1>ตั้งค่าเครื่อง Cafe-WiFi</h1>
+  <p>กรอก <b>setup code</b> ที่ได้ตอนเตรียมการ์ด (หรืออยู่ในไฟล์ <code>SETUP-CODE.txt</code> บนการ์ด)</p>
+  <form method="post">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <label for="code">Setup code</label>
+    <input id="code" name="code" class="code" autocomplete="off" autocapitalize="characters"
+           placeholder="XXXX-XXXX" required autofocus>
+    <button type="submit">ต่อไป</button>
+  </form>
+</div>
+{% endblock %}

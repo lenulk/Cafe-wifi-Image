@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}ตรวจสอบความถูกต้องของ log{% endblock %}
+{% block body %}
+<div class="card">
+  <h1>ตรวจสอบความถูกต้องของ log (hash chain)</h1>
+  <p class="hint">
+    ตรวจสาย SHA-256 ของไฟล์ log ที่ผนึกไว้ทั้งหมดใน <code class="mono">{{ archive_dir }}</code>
+    — ถ้ามีใครแก้ไขไฟล์ที่ผนึกแล้วแม้แต่ตัวอักษรเดียว hash จะไม่ตรงกับที่บันทึกไว้ และจะถูกจับได้ที่นี่
+  </p>
+
+  {% if not issues %}
+  <div class="msg ok">✓ ตรวจสายผ่านทั้งหมด ไม่พบไฟล์ log ที่ถูกแก้ไข</div>
+  {% else %}
+  <div class="msg err">✗ พบ {{ issues|length }} ปัญหา — ดูรายละเอียดในตารางด้านล่าง</div>
+  <table>
+    <tr><th>ไฟล์</th><th>ประเภทปัญหา</th><th>รายละเอียด</th></tr>
+    {% for i in issues %}
+    <tr>
+      <td class="mono">{{ i.filename }}</td>
+      <td>
+        {% if i.kind == 'hash_mismatch' %}ไฟล์ถูกแก้ไข (hash ไม่ตรง)
+        {% elif i.kind == 'missing_file' %}ไฟล์หายไป
+        {% elif i.kind == 'chain_broken' %}สาย hash ขาด
+        {% else %}{{ i.kind }}{% endif %}
+      </td>
+      <td>{{ i.detail }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+
+  <p style="margin-top:1rem">
+    <a class="btn" href="{{ url_for('dashboard') }}">กลับแดชบอร์ด</a>
+    <form method="post" action="{{ url_for('verify_log_integrity') }}" style="display:inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="ghost" type="submit">ตรวจซ้ำ</button>
+    </form>
+  </p>
+</div>
+{% endblock %}

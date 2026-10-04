@@ -1,0 +1,15 @@
+-- ============================================================================
+--  007_conn_log_started_at.sql — เวลาเริ่ม connection ใน conn_log (R2-02)
+--  MariaDB 10.6+ / 11.x
+-- ============================================================================
+-- conn_log.ts คือเวลาที่ conntrack ส่ง DESTROY (connection จบ/หมดอายุ) ซึ่งช้ากว่าการใช้งานจริง
+-- ได้ตั้งแต่ ~2 นาที (TIME_WAIT) ถึงหลายชั่วโมง -- เวลาเริ่มคือเวลาที่ใช้ระบุว่า "ใคร" เปิด
+-- connection นี้ (จับคู่กับช่วง portal_session) ส่วน ts ยังเป็นเวลาจบเหมือนเดิม (partition,
+-- purge และการรวม bytes ของโควตายังใช้ ts ต่อไปได้)
+--
+-- NULL = ไม่รู้เวลาเริ่ม (แถวเก่าก่อน migration นี้ หรือ collector ไม่เห็น NEW และเคอร์เนลไม่ส่ง
+-- timestamp มา) -- โค้ดที่ใช้ต้อง COALESCE(started_at, ts)
+--
+-- 001_schema.sql apply ไปแล้วแก้ตรง ๆ ไม่ได้ (กติกา §5 ของ CODING_BRIEF.md) จึงเพิ่มผ่าน
+-- migration นี้ -- `IF NOT EXISTS` (MariaDB extension) รันซ้ำได้เสมอ
+ALTER TABLE conn_log ADD COLUMN IF NOT EXISTS started_at DATETIME(3) NULL AFTER ts;

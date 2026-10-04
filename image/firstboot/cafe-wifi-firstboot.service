@@ -1,0 +1,26 @@
+# Cafe-WiFi first boot (M2, docs/image-build-plan.md §4)
+# ติดตั้งโดย image/stage-cafewifi (M3) ไปที่ /etc/systemd/system/ และ enable ไว้ใน image
+# สคริปต์อยู่ที่ /usr/local/sbin/cafe-wifi-firstboot
+[Unit]
+Description=Cafe-WiFi first boot: per-device secrets (runs once)
+Documentation=file:/opt/cafe-wifi/docs/image-build-plan.md
+# ธงปักเป็นขั้นสุดท้ายของสคริปต์ -- ไฟดับก่อนถึงตรงนั้น บูตหน้าจะรันใหม่ (ทุกขั้นรันซ้ำได้)
+ConditionPathExists=!/etc/cafe-wifi/.firstboot-done
+# MariaDB ต้องรันอยู่ (setup_database สร้างผู้ใช้ด้วย DB_PASS ใหม่) · bootfs ต้อง mount แล้ว (cafewifi.conf)
+# ไม่ต้องรอเครือข่าย: firstboot ไม่ใช้เน็ต (preflight แค่เตือนถ้าออกเน็ตไม่ได้)
+Wants=mariadb.service
+After=local-fs.target boot-firmware.mount boot.mount mariadb.service systemd-machine-id-commit.service regenerate_ssh_host_keys.service
+# ของที่ต้องใช้ความลับ/ใบรับรอง/host key ที่สร้างที่นี่ ต้องรอให้เสร็จก่อน
+Before=ssh.service nginx.service dnsmasq.service opennds.service cafe-fas.service cafe-admin.service cafe-logger.service cafe-enforce.service cafe-reconcile.service cafe-bypass-detect.service cafe-maintenance.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/cafe-wifi-firstboot
+# คอมไพล์อะไรไม่มีแล้ว (ทำตอน build) แต่ RSA 2048 + schema บน SD card ช้า ๆ อาจเกินค่าปริยาย 90 วิ
+TimeoutStartSec=15min
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,39 @@
+# Setup wizard ของ image (M4) -- http://cafewifi.local พอร์ต 80 เฉพาะ "โหมดตั้งค่า"
+# ทำงานหลัง first boot เสร็จ จนกว่า setup/apply.py ปัก /etc/cafe-wifi/.site-done แล้ว disable ตัวเอง
+[Unit]
+Description=Cafe-WiFi setup wizard (http://cafewifi.local)
+ConditionPathExists=/etc/cafe-wifi/.firstboot-done
+ConditionPathExists=!/etc/cafe-wifi/.site-done
+After=cafe-wifi-firstboot.service mariadb.service network-online.target
+Wants=mariadb.service network-online.target
+
+[Service]
+Type=simple
+User=cafewifi
+Group=cafewifi
+WorkingDirectory=/opt/cafe-wifi
+EnvironmentFile=/etc/cafe-wifi/secrets.env
+Environment=PYTHONPATH=/opt/cafe-wifi
+# workers 1: ตัวนับการกรอก code ผิดอยู่ในหน่วยความจำของ process เดียว
+# [::]:80 = IPv4 + IPv6 (bindv6only=0) -- เปิดได้ทาง IPv6/link-local แม้เราเตอร์ไม่แจก IPv4 (เจอบนการ์ด B)
+ExecStart=/opt/cafe-wifi/venv/bin/gunicorn --workers 1 --threads 4 --timeout 60 --bind [::]:80 setup.app:app
+Restart=on-failure
+RestartSec=3
+# พอร์ต 80 + raw socket ของ tools/check_router.py (DHCPDISCOVER / Router Solicitation) โดยไม่ต้องเป็น root
+AmbientCapabilities=CAP_NET_BIND_SERVICE CAP_NET_RAW
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE CAP_NET_RAW
+RuntimeDirectory=cafe-wifi-setup
+RuntimeDirectoryMode=0750
+RuntimeDirectoryPreserve=yes
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/run/cafe-wifi-setup
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_PACKET AF_NETLINK
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target

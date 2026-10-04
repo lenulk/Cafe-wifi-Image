@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}เชื่อมต่อ Wi-Fi{% endblock %}
+{% block body %}
+<h1>{{ gateway_name }}</h1>
+<div class="msg warn">
+  หน้านี้ต้องเปิดผ่านการเชื่อมต่อ Wi-Fi ของร้านเท่านั้น
+  หากอุปกรณ์ของคุณไม่เด้งหน้านี้อัตโนมัติ ให้ลองเปิดเว็บเบราว์เซอร์แล้วไปที่
+  <strong>http://cafe.wifi</strong> หรือปิด-เปิด Wi-Fi ใหม่อีกครั้ง
+</div>
+<p class="hint">หากยังไม่สำเร็จ กรุณาแจ้งพนักงาน</p>
+{% endblock %}

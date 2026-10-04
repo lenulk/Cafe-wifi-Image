@@ -1,0 +1,20 @@
+{% extends "setup_base.html" %}
+{% block body %}
+<div class="card">
+  <h1>สร้างบัญชีผู้ดูแลระบบ</h1>
+  <p class="hint">บัญชีแรกของหน้า Admin (อนุมัติลูกค้า, ดู log, ส่งออกหลักฐาน) — ส่งมอบแล้วให้ร้านเปลี่ยนรหัสผ่านเอง</p>
+  <form method="post">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <label for="username">ชื่อผู้ใช้</label>
+    <input id="username" name="username" value="{{ username or '' }}" autocomplete="username" required>
+    <label for="display_name">ชื่อที่แสดง</label>
+    <input id="display_name" name="display_name" value="{{ display_name or '' }}">
+    <label for="password">รหัสผ่าน</label>
+    <input id="password" name="password" type="password" autocomplete="new-password" required>
+    <div class="hint">อย่างน้อย 12 ตัว มีตัวพิมพ์เล็ก ตัวพิมพ์ใหญ่ และตัวเลข</div>
+    <label for="password_confirm">ยืนยันรหัสผ่าน</label>
+    <input id="password_confirm" name="password_confirm" type="password" autocomplete="new-password" required>
+    <button type="submit">สร้างบัญชี</button>
+  </form>
+</div>
+{% endblock %}

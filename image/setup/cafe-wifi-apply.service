@@ -1,0 +1,15 @@
+# ฝั่ง root ของ wizard: ตรวจค่าซ้ำ ตรวจเราเตอร์ซ้ำ แล้วรัน install.sh --stage site (setup/apply.py)
+[Unit]
+Description=Cafe-WiFi setup: apply site settings
+ConditionPathExists=!/etc/cafe-wifi/.site-done
+After=mariadb.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/cafe-wifi
+Environment=PYTHONPATH=/opt/cafe-wifi
+ExecStart=/opt/cafe-wifi/venv/bin/python -m setup.apply
+RuntimeDirectory=cafe-wifi-apply
+RuntimeDirectoryMode=0755
+RuntimeDirectoryPreserve=yes
+TimeoutStartSec=40min

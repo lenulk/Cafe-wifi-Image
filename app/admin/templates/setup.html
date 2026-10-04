@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}ตั้งค่าครั้งแรก{% endblock %}
+{% block body %}
+<div class="card">
+  <h1>ตั้งค่าระบบครั้งแรก</h1>
+  <p class="hint">
+    ยังไม่มีบัญชีผู้ดูแลระบบในระบบนี้ กรอกข้อมูลด้านล่างเพื่อสร้าง
+    <strong>บัญชีผู้ดูแลระบบหลัก</strong> (role = admin)
+  </p>
+  <div class="msg warn">
+    หน้านี้จะ<strong>ปิดตัวเองถาวร</strong>ทันทีที่สร้างบัญชีแรกสำเร็จ
+    และไฟล์ setup token จะถูกลบอัตโนมัติ
+  </div>
+
+  {% if errors %}
+  <div class="msg err">
+    แก้ไขข้อผิดพลาดต่อไปนี้ก่อน
+    <ul class="errs">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
+  </div>
+  {% endif %}
+
+  <form method="post" autocomplete="off">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="token">Setup Token</label>
+    <input type="text" id="token" name="token" class="mono" required
+           placeholder="วางค่าจาก /etc/cafe-wifi/setup.token">
+    <div class="hint">
+      ดูได้จากข้อความสรุปตอนติดตั้งเสร็จ หรือรัน
+      <code>sudo cat /etc/cafe-wifi/setup.token</code> บนเครื่อง gateway
+    </div>
+
+    <label for="username">ชื่อผู้ใช้</label>
+    <input type="text" id="username" name="username" required minlength="3" maxlength="64"
+           value="{{ username or '' }}" placeholder="เช่น admin">
+
+    <label for="display_name">ชื่อที่แสดง</label>
+    <input type="text" id="display_name" name="display_name" maxlength="128"
+           value="{{ display_name or '' }}" placeholder="เช่น ผู้ดูแลระบบ">
+
+    <label for="password">รหัสผ่าน</label>
+    <input type="password" id="password" name="password" required minlength="12">
+    <div class="hint">อย่างน้อย 12 ตัวอักษร มีตัวพิมพ์เล็ก พิมพ์ใหญ่ และตัวเลข</div>
+
+    <label for="password_confirm">ยืนยันรหัสผ่าน</label>
+    <input type="password" id="password_confirm" name="password_confirm" required minlength="12">
+
+    <p><button type="submit">สร้างบัญชีผู้ดูแลระบบหลัก</button></p>
+  </form>
+</div>
+{% endblock %}

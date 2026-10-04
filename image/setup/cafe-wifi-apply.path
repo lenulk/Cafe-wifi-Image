@@ -1,0 +1,11 @@
+# ปลุก cafe-wifi-apply.service เมื่อ wizard เขียนคำขอบันทึก (ไฟล์ปรากฏแบบ atomic ด้วย rename)
+[Unit]
+Description=Cafe-WiFi setup: wait for apply request
+ConditionPathExists=!/etc/cafe-wifi/.site-done
+
+[Path]
+PathExists=/run/cafe-wifi-setup/apply.json
+Unit=cafe-wifi-apply.service
+
+[Install]
+WantedBy=multi-user.target

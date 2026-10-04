@@ -1,0 +1,12 @@
+# บังคับให้ไฟล์ข้อความเป็น LF ทั้งใน repo และใน working tree
+# เหตุผล: พัฒนาบน Windows (core.autocrlf) แล้วส่งไฟล์ขึ้น Raspberry Pi -- ไฟล์ .sh ที่มี CRLF
+# รันไม่ได้เลย (`env: 'bash': No such file or directory`) และไฟล์อื่น ๆ ทำให้เทียบ checksum
+# กับ repo ไม่ตรงทั้งที่เนื้อหาเหมือนกัน ซึ่งเสียเวลาตรวจสอบไปหลายรอบระหว่างทดสอบบนฮาร์ดแวร์จริง
+* text=auto eol=lf
+
+# ไฟล์ไบนารี -- ห้ามแตะการขึ้นบรรทัด
+*.png binary
+*.jpg binary
+*.pdf binary
+*.pptx binary
+*.gz binary

@@ -1,0 +1,29 @@
+{% extends "setup_base.html" %}
+{% block body %}
+<div class="card">
+  <h1>เครือข่ายและข้อมูลร้าน</h1>
+  {% if uplink %}
+    <p class="hint">ตอนนี้ Pi ได้ IP {{ uplink.ip }}/{{ uplink.prefix }} จากเราเตอร์ {{ uplink.gw }} ทาง {{ uplink.nic }}
+      — ค่าด้านล่างเสนอจากข้อมูลนี้ ส่วนใหญ่กดต่อไปได้เลย</p>
+  {% else %}
+    <div class="warn">ยังไม่ได้ IP จากเราเตอร์ — ตรวจสาย LAN และให้ DHCP ของเราเตอร์ยังเปิดอยู่ในขั้นนี้</div>
+  {% endif %}
+  <form method="post">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <label for="gateway_name">ชื่อร้าน (แสดงบนหน้า Wi-Fi ลูกค้า)</label>
+    <input id="gateway_name" name="gateway_name" value="{{ v.gateway_name or '' }}" placeholder="Cafe-Guest" maxlength="64">
+    <label for="uplink_cidr">IP ของ Pi ฝั่งเราเตอร์</label>
+    <input id="uplink_cidr" name="uplink_cidr" value="{{ v.uplink_cidr }}" placeholder="192.168.1.2/24" required>
+    <div class="hint">ใช้ IP ที่ได้อยู่ตอนนี้ได้เลย (ปิด DHCP เราเตอร์แล้วจะไม่มีเครื่องอื่นได้ซ้ำ)</div>
+    <label for="uplink_gw">IP ของเราเตอร์</label>
+    <input id="uplink_gw" name="uplink_gw" value="{{ v.uplink_gw }}" placeholder="192.168.1.1" required>
+    <label for="client_cidr">วงของลูกค้า (Pi เป็นคนแจก)</label>
+    <input id="client_cidr" name="client_cidr" value="{{ v.client_cidr }}" required>
+    <label for="retention_days">เก็บ log กี่วัน</label>
+    <input id="retention_days" name="retention_days" type="number" min="90" max="3650" value="{{ v.retention_days }}" required>
+    <div class="hint">กฎหมาย (พ.ร.บ.คอมพิวเตอร์ฯ ม.26) กำหนดขั้นต่ำ 90 วัน</div>
+    <input type="hidden" name="nic" value="{{ v.nic }}">
+    <button type="submit">ต่อไป</button>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}สำรองกุญแจ{% endblock %}
+{% block body %}
+<h1>สำรองกุญแจเข้ารหัส</h1>
+{% if errors %}
+<div class="msg err">
+  แก้ไขข้อผิดพลาดต่อไปนี้ก่อน
+  <ul class="errs">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+<div class="card">
+  <p><b>ทำไมต้องสำรอง:</b> เลขบัตรประชาชนของลูกค้าเก็บแบบเข้ารหัส กุญแจถอดรหัสอยู่ในเครื่องนี้ที่เดียว
+    (สำรองข้อมูลลง USB <u>ไม่มี</u>กุญแจนี้) — ถ้า SD card เสียโดยไม่มีไฟล์สำรอง จะถอดเลขบัตรที่เก็บไว้ไม่ได้อีกเลย
+    และส่งข้อมูลตามหมายศาล (พ.ร.บ.คอมพิวเตอร์ฯ ม.26) ไม่ได้</p>
+  <table>
+    <tr><td>ลายนิ้วมือกุญแจของเครื่องนี้</td><td><code>{{ fingerprint or '—' }}</code></td></tr>
+    <tr><td>สำรองล่าสุด</td><td>{% if last_backup %}{{ last_backup }}{% else %}<b class="badge err">ยังไม่เคยสำรอง</b>{% endif %}</td></tr>
+  </table>
+  {% if not readable %}<div class="msg err">อ่านไฟล์กุญแจไม่ได้ — ตรวจสิทธิ์ /etc/cafe-wifi/secrets.env</div>{% endif %}
+</div>
+
+<div class="card">
+  <h2>ดาวน์โหลดไฟล์สำรอง</h2>
+  <form method="post" action="{{ url_for('keys_backup') }}" autocomplete="off">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="current_password">รหัสผ่านบัญชีแอดมินของคุณ (ยืนยันตัวตนอีกครั้ง)</label>
+    <input id="current_password" name="current_password" type="password" autocomplete="current-password" required>
+    <label for="passphrase">รหัสผ่านสำหรับล็อกไฟล์สำรอง</label>
+    <input id="passphrase" name="passphrase" type="password" autocomplete="new-password" minlength="{{ min_len }}" required>
+    <div class="hint">อย่างน้อย {{ min_len }} ตัว ห้ามซ้ำกับรหัสบัญชี — ใช้เป็นประโยคยาว ๆ ที่จำได้ <b>ลืมรหัสนี้ = ใช้ไฟล์ไม่ได้</b></div>
+    <label for="passphrase_confirm">ยืนยันรหัสผ่านสำหรับล็อกไฟล์สำรอง</label>
+    <input id="passphrase_confirm" name="passphrase_confirm" type="password" autocomplete="new-password" required>
+    <p><button type="submit">ดาวน์โหลดไฟล์สำรองกุญแจ</button></p>
+  </form>
+  <div class="hint">
+    เก็บไฟล์ <code>.cwkey</code> ไว้<b>นอกเครื่อง</b> อย่างน้อย 2 ที่ (เช่น Google Drive ของเจ้าของร้าน + แฟลชไดรฟ์ที่เก็บแยก)
+    · ไฟล์ถูกเข้ารหัสแล้ว แต่ยังควรเก็บเป็นความลับ · เขียนรหัสผ่านเก็บไว้คนละที่กับไฟล์
+    · กู้คืนบนเครื่องใหม่: <code>sudo /opt/cafe-wifi/venv/bin/python -m tools.restore_keys &lt;ไฟล์&gt;</code>
+  </div>
+</div>
+{% endblock %}

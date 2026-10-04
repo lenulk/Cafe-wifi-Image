@@ -1,0 +1,55 @@
+{% extends "setup_base.html" %}
+{% block body %}
+{% if status.state == 'failed' %}
+<div class="card">
+  <div class="err"><b>บันทึกไม่สำเร็จ:</b> {{ status.message }}</div>
+  {% if status.log_tail %}<pre>{{ status.log_tail }}</pre>{% endif %}
+  <p class="hint">แก้ตามข้อความแล้วตรวจและบันทึกใหม่ได้ (ค่าที่ทำไปแล้วไม่หาย)</p>
+</div>
+{% endif %}
+<div class="card">
+  <h1>ทำ 3 อย่างนี้ที่เราเตอร์ แล้วกดตรวจสอบ</h1>
+  <ol>
+    <li><b>ปิด DHCP</b> ของเราเตอร์ (Pi จะแจก IP ให้ลูกค้าแทน)</li>
+    <li><b>ปิด IPv6</b> ฝั่ง LAN</li>
+    <li>เปิด Client Isolation (ถ้ามี)</li>
+  </ol>
+  <p class="hint">ถ้าไม่ปิด ลูกค้าจะออกเน็ตได้โดยไม่ผ่านหน้าลงทะเบียน (ไม่มี log ตามกฎหมาย) — ระบบจึงไม่ยอมบันทึกจนกว่าจะตรวจผ่าน</p>
+  {% if result %}
+    <div class="{{ 'ok' if result.dhcp.ok else 'err' }}">
+      {{ '✅' if result.dhcp.ok else '❌' }} DHCP ของเราเตอร์
+      {% if result.dhcp.ok %}ปิดแล้ว{% elif result.dhcp.error %}ตรวจไม่ได้ ({{ result.dhcp.error }}){% else %}ยังเปิดอยู่
+        ({% for s in result.dhcp.servers %}{{ s.server_ip }}{% if not loop.last %}, {% endif %}{% endfor %}){% endif %}
+    </div>
+    <div class="{{ 'ok' if result.ipv6.ok else 'err' }}">
+      {{ '✅' if result.ipv6.ok else '❌' }} IPv6 ฝั่ง LAN
+      {% if result.ipv6.ok %}ปิดแล้ว{% elif result.ipv6.error %}ตรวจไม่ได้ ({{ result.ipv6.error }}){% else %}ยังเปิดอยู่
+        ({% for r in result.ipv6.routers %}{{ r.router_ip }}{% if not loop.last %}, {% endif %}{% endfor %}){% endif %}
+    </div>
+  {% endif %}
+  <form method="post" action="{{ url_for('router_check') }}">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <button type="submit" class="{{ 'secondary' if router_ok else '' }}">ตรวจสอบ (~30 วินาที)</button>
+  </form>
+</div>
+<div class="card">
+  <h1>สรุปก่อนบันทึก</h1>
+  <table>
+    <tr><td>ชื่อร้าน</td><td>{{ v.gateway_name }}</td></tr>
+    <tr><td>IP ของ Pi</td><td>{{ v.uplink_cidr }} ({{ v.nic }})</td></tr>
+    <tr><td>เราเตอร์</td><td>{{ v.uplink_gw }}</td></tr>
+    <tr><td>วงลูกค้า</td><td>{{ v.client_cidr }}</td></tr>
+    <tr><td>เก็บ log</td><td>{{ v.retention_days }} วัน</td></tr>
+    {% if admin_user %}<tr><td>แอดมิน</td><td>{{ admin_user }}</td></tr>{% endif %}
+  </table>
+  <p><a href="{{ url_for('network') }}">แก้ค่า</a></p>
+  {% if router_ok %}
+  <form method="post" action="{{ url_for('apply') }}">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <button type="submit">บันทึกและเปิดระบบ</button>
+  </form>
+  {% else %}
+  <p class="hint">ปุ่มบันทึกจะขึ้นเมื่อตรวจเราเตอร์ผ่าน</p>
+  {% endif %}
+</div>
+{% endblock %}

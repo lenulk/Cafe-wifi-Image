@@ -1,0 +1,31 @@
+{# ชื่อเครื่องลูกค้า -- ใช้ร่วมกันทุกหน้า (แดชบอร์ด/ลูกค้า/คำขอ) ให้หน้าตาเหมือนกัน
+   d: dict ที่มี hostname, os_label, mac (และ online ถ้ารู้) · กดแล้วไปค้น log ของเครื่องนั้น 7 วันล่าสุด #}
+{% macro device_name(d, link=True) -%}
+  {%- set label = d.hostname or d.os_label or ('เครื่อง …' ~ d.mac[-5:] if d.mac else 'ไม่ทราบชื่อเครื่อง') -%}
+  <span style="white-space:nowrap">
+  {%- if d.online is defined -%}
+    <span title="{{ 'ออนไลน์อยู่' if d.online else 'ไม่ได้ออนไลน์' }}"
+          style="color:{{ 'var(--ok, #1a7f37)' if d.online else 'var(--muted)' }}">●</span>
+  {% endif -%}
+  {%- if link and (d.hostname or d.mac) -%}
+    <a href="{{ url_for('search_logs', q=d.hostname or d.mac, range='7d') }}"
+       style="text-decoration:none;border-bottom:1px dotted var(--muted);color:inherit">{{ label }}</a>
+  {%- else -%}{{ label }}{%- endif -%}
+  {%- if d.hostname and d.os_label %} <span class="hint">{{ d.os_label }}</span>{% endif -%}
+  </span>
+{%- endmacro %}
+
+{# ปริมาณเน็ตที่ใช้ -- u: {down, up, total} bytes · quota_mb: โควตาของสิทธิ์ (None = ไม่จำกัด) #}
+{% macro usage(u, quota_mb=None) -%}
+  {%- if u -%}
+  <div style="white-space:nowrap"><b>{{ u.total|human_bytes }}</b>
+    {%- if quota_mb %} <span class="hint">/ {{ (quota_mb * 1000000)|human_bytes }}</span>{% endif %}</div>
+  {%- if quota_mb -%}
+    {%- set pct = [u.total * 100 / (quota_mb * 1000000), 100]|min -%}
+    <div style="height:6px;background:var(--line);border-radius:3px;margin:.2rem 0;max-width:9rem">
+      <div style="height:100%;width:{{ pct|round(1) }}%;border-radius:3px;
+                  background:{{ 'var(--err)' if pct >= 90 else 'var(--warn)' if pct >= 70 else 'var(--ok)' }}"></div></div>
+  {%- endif -%}
+  <div class="hint" style="white-space:nowrap" title="ดาวน์โหลด / อัปโหลด">↓ {{ u.down|human_bytes }} · ↑ {{ u.up|human_bytes }}</div>
+  {%- else -%}<span class="hint">-</span>{%- endif -%}
+{%- endmacro %}
