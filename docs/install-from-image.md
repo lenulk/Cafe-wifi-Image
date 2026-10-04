@@ -1,6 +1,6 @@
 # คู่มือติดตั้ง Cafe-WiFi จาก Image สำเร็จรูป
 
-> ใช้กับ **Cafe-WiFi OS 1.0.1** — ดาวน์โหลดที่หน้า [Releases](https://github.com/lenulk/Cafe-wifi-Image/releases)
+> ใช้กับ **Cafe-WiFi OS 1.1.0 ขึ้นไป** — ดาวน์โหลดที่หน้า [Releases](https://github.com/lenulk/Cafe-wifi-Image/releases)
 
 เอกสารนี้อธิบายการติดตั้งระบบลง Raspberry Pi 4B ด้วยไฟล์ `cafe-wifi-<รุ่น>.img.xz`
 ที่ติดตั้งซอฟต์แวร์ทุกอย่างไว้แล้ว **ช่างไม่ต้องพิมพ์คำสั่ง CLI เลย** และไม่ต้องรู้ล่วงหน้าว่าร้านใช้วง IP อะไร

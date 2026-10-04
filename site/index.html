@@ -1,0 +1,880 @@
+<!doctype html>
+<html lang="th" data-lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cafe-WiFi OS</title>
+<meta name="description" content="Wi-Fi ร้านกาแฟที่เก็บ log ตาม พ.ร.บ.คอมพิวเตอร์ ม.26 บน Raspberry Pi 4B — flash การ์ด เสียบสาย LAN ตั้งค่าผ่านเว็บ ไม่ต้องใช้ command line">
+<meta property="og:title" content="Cafe-WiFi OS">
+<meta property="og:description" content="Wi-Fi ร้านกาแฟที่เก็บ log ถูกกฎหมาย บน Raspberry Pi 4B — flash การ์ด เสียบสาย LAN ตั้งค่าผ่านเว็บ">
+<meta property="og:image" content="img/admin-dashboard.jpg">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232e1e13'/%3E%3Cpath d='M8 14h13v5a6 6 0 0 1-6 6h-1a6 6 0 0 1-6-6z' fill='%23e3a35f'/%3E%3Cpath d='M21 15.5h1.5a2.5 2.5 0 0 1 0 5H21' stroke='%23e3a35f' stroke-width='2' fill='none'/%3E%3Cpath d='M10 10a8 8 0 0 1 9 0M12 7.5a5 5 0 0 1 5 0' stroke='%23f5ebde' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=Noto+Serif+Thai:wght@600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script>
+  // เลือกภาษาก่อนวาดหน้า (กันกะพริบ): ?lang=en > ที่เคยเลือกไว้ > ไทย
+  (function () {
+    var l = new URLSearchParams(location.search).get('lang');
+    if (l !== 'th' && l !== 'en') { try { l = localStorage.getItem('cw-lang'); } catch (e) {} }
+    if (l !== 'en') l = 'th';
+    document.documentElement.setAttribute('data-lang', l);
+    document.documentElement.lang = l;
+  })();
+</script>
+</head>
+<body>
+
+<!-- ไอคอนที่ใช้ซ้ำ -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-cup" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 14h15v5a7 7 0 0 1-7 7h-1a7 7 0 0 1-7-7z"/><path d="M21 15.5h1.5a3 3 0 0 1 0 6H21"/><path d="M9 10a9 9 0 0 1 9 0M11.5 6.5a5 5 0 0 1 4 0"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 19h14"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H11v16H5.5A1.5 1.5 0 0 1 4 18.5zM20 5.5A1.5 1.5 0 0 0 18.5 4H13v16h5.5a1.5 1.5 0 0 0 1.5-1.5z"/></symbol>
+  <symbol id="i-github" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.9 1.52 2.34 1.08 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02a9.6 9.6 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2z"/></symbol>
+  <symbol id="i-person" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+  <symbol id="i-chip" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9.5 17h-19z"/><path d="M12 10v4.5M12 17.5v.5"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l3 3 5-6"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M11 18.5h2"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5" stroke-linecap="round"/></symbol>
+  <symbol id="i-store" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 9l1.5-5h15L21 9M3 9v11h18V9M3 9h18"/><path d="M9 20v-6h6v6"/></symbol>
+  <symbol id="i-wrench" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 6.5a4 4 0 0 0 5 5L12 19a2.1 2.1 0 0 1-3-3l7.5-7.5a4 4 0 0 0-2-2zM14.5 6.5L17 4"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M16 7l3 3"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4.5" y="10.5" width="15" height="10" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></symbol>
+  <symbol id="i-reset" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 0 2.5-5.8M4 4v4h4"/></symbol>
+  <symbol id="i-usb" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="7" y="9" width="10" height="13" rx="2"/><path d="M9 9V3h6v6M10.5 5.5h.01M13.5 5.5h.01" stroke-linecap="round"/></symbol>
+</svg>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="#top"><svg><use href="#i-cup"/></svg>Cafe-WiFi OS</a>
+    <nav class="nav-links" id="nav-links" aria-label="sections">
+      <a href="#features"><span lang="th">ฟีเจอร์</span><span lang="en">Features</span></a>
+      <a href="#how"><span lang="th">ทำงานอย่างไร</span><span lang="en">How it works</span></a>
+      <a href="#router"><span lang="th">เราเตอร์</span><span lang="en">Router</span></a>
+      <a href="#install"><span lang="th">คู่มือติดตั้ง</span><span lang="en">Install guide</span></a>
+      <a href="#security"><span lang="th">ความปลอดภัย</span><span lang="en">Security</span></a>
+      <a href="#tested"><span lang="th">ผลทดสอบ</span><span lang="en">Tested</span></a>
+      <a href="#download"><span lang="th">ดาวน์โหลด</span><span lang="en">Download</span></a>
+    </nav>
+    <div class="nav-tools">
+      <div class="lang-toggle" role="group" aria-label="Language">
+        <button type="button" data-set-lang="th">ไทย</button>
+        <button type="button" data-set-lang="en">EN</button>
+      </div>
+      <a class="icon-btn" href="https://github.com/lenulk/Cafe-wifi-Image" aria-label="GitHub"><svg><use href="#i-github"/></svg></a>
+      <button type="button" class="icon-btn menu-btn" aria-controls="nav-links" aria-expanded="false" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path class="m1" d="M4 7h16"/><path class="m2" d="M4 12h16"/><path class="m3" d="M4 17h16"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main id="top">
+
+<!-- ================= HERO ================= -->
+<section class="hero">
+  <div class="wrap">
+    <div>
+      <div class="eyebrow"><span class="dot"></span>
+        <span lang="th">ทดสอบบน Raspberry Pi 4B จริงแล้ว · รุ่น <span class="js-ver">1.1.0</span></span>
+        <span lang="en">Tested on real Raspberry Pi 4B · v<span class="js-ver">1.1.0</span></span>
+      </div>
+      <h1>
+        <span lang="th">Wi-Fi ร้านกาแฟ<br>ที่<em>เก็บ log ถูกกฎหมาย</em></span>
+        <span lang="en">Café Wi-Fi that<br><em>keeps logs by the law</em></span>
+      </h1>
+      <p class="lede">
+        <span lang="th">ระบบสำเร็จรูปบน Raspberry Pi 4B — flash การ์ด เสียบสาย LAN เส้นเดียวเข้าเราเตอร์ร้าน แล้วตั้งค่าผ่านเว็บจากมือถือ
+          ลูกค้าลงทะเบียนที่หน้า captive portal พนักงานกดอนุมัติ ระบบเก็บข้อมูลจราจรตาม พ.ร.บ.คอมพิวเตอร์ฯ มาตรา 26 ให้เอง
+          <b>ไม่ต้องพิมพ์ command line เลย</b></span>
+        <span lang="en">A ready-made system for Raspberry Pi 4B. Flash the card, plug one LAN cable into the shop's router, and finish setup
+          from a phone browser. Customers register on a captive portal, staff approve them, and traffic logs required by
+          Thailand's Computer Crime Act (Section 26) are kept automatically. <b>No command line needed.</b></span>
+      </p>
+      <div class="ctas">
+        <a class="btn btn-primary js-dl" href="https://github.com/lenulk/Cafe-wifi-Image/releases/latest">
+          <svg><use href="#i-download"/></svg>
+          <span lang="th">ดาวน์โหลด image</span><span lang="en">Download image</span>
+        </a>
+        <a class="btn btn-ghost" href="#install"><svg><use href="#i-book"/></svg>
+          <span lang="th">คู่มือติดตั้ง</span><span lang="en">Install guide</span></a>
+      </div>
+      <p class="meta">
+        <span lang="th">ฟรี · โอเพนซอร์ส (MIT) · ใช้กับเราเตอร์เดิมของร้านได้ <a href="#router" style="color:inherit">(ถ้ามีคุณสมบัติครบ)</a></span>
+        <span lang="en">Free · Open source (MIT) · Works with the shop's existing router <a href="#router" style="color:inherit">(if it meets the requirements)</a></span>
+      </p>
+    </div>
+    <div class="phones" aria-hidden="true">
+      <div class="phone a"><img src="img/portal-register.jpg" alt="" width="900" height="1468"></div>
+      <div class="phone b"><img src="img/wizard-4-router-ok.jpg" alt="" width="469" height="1015"></div>
+    </div>
+  </div>
+</section>
+
+<div class="wrap">
+  <div class="stats">
+    <div class="stat"><b>~6 <span lang="th">นาที</span><span lang="en">min</span></b>
+      <span lang="th">เสียบไฟจนระบบพร้อมใช้</span><span lang="en">from power-on to ready</span></div>
+    <div class="stat"><b>49/49</b>
+      <span lang="th">ทดสอบทั้งระบบผ่านบน Pi จริง</span><span lang="en">end-to-end tests passed on real Pi</span></div>
+    <div class="stat"><b>~7–8 <span lang="th">วิ</span><span lang="en">s</span></b>
+      <span lang="th">ปิดสิทธิ์แล้วเน็ตถูกตัด</span><span lang="en">from revoke to internet cut</span></div>
+    <div class="stat"><b>0</b>
+      <span lang="th">ความลับในไฟล์ image</span><span lang="en">secrets inside the image</span></div>
+  </div>
+</div>
+
+<!-- ================= WHY ================= -->
+<section class="block">
+  <div class="wrap law">
+    <div class="sec-head" style="margin:0">
+      <span class="kicker"><span lang="th">ทำไมต้องมี</span><span lang="en">Why</span></span>
+      <h2><span lang="th">เปิด Wi-Fi ให้ลูกค้า = มีหน้าที่ตามกฎหมาย</span><span lang="en">Free Wi-Fi comes with legal duties</span></h2>
+      <p>
+        <span lang="th">ร้านที่ให้ลูกค้าใช้อินเทอร์เน็ตต้องเก็บข้อมูลจราจรทางคอมพิวเตอร์และระบุตัวผู้ใช้ได้
+          แต่เราเตอร์ทั่วไปทำไม่ได้ และระบบสำเร็จรูปส่วนใหญ่ต้องใช้ช่างที่ถนัด Linux
+          Cafe-WiFi OS ทำให้การติดตั้งเหลือแค่ flash การ์ดกับกดตามหน้าเว็บ</span>
+        <span lang="en">A shop that offers internet access has to keep computer traffic data and be able to identify its users.
+          Ordinary routers can't do this, and most turnkey systems need a Linux-savvy technician.
+          Cafe-WiFi OS turns installation into flashing a card and following a web wizard.</span>
+      </p>
+    </div>
+    <blockquote>
+      <span lang="th"><b>พ.ร.บ.คอมพิวเตอร์ฯ มาตรา 26</b> — ผู้ให้บริการต้องเก็บรักษาข้อมูลจราจรทางคอมพิวเตอร์ไว้ไม่น้อยกว่า 90 วัน
+        และต้องเก็บข้อมูลของผู้ใช้บริการเท่าที่จำเป็นเพื่อให้สามารถระบุตัวผู้ใช้บริการได้
+        <br><br>Cafe-WiFi OS เก็บ log การเชื่อมต่อและ DNS ตามจำนวนวันที่ตั้ง (≥ 90 วัน) ตรวจความครบถ้วนด้วย hash
+        และส่งออกเป็นหลักฐานได้เมื่อมีหมายศาล</span>
+      <span lang="en"><b>Computer Crime Act B.E. 2550, Section 26</b> — service providers must retain computer traffic data for at least
+        90 days and keep the user information needed to identify each user.
+        <br><br>Cafe-WiFi OS keeps connection and DNS logs for the configured period (≥ 90 days), checks their integrity with
+        hashes, and exports them as evidence when a court order arrives.</span>
+    </blockquote>
+  </div>
+</section>
+
+<!-- ================= FEATURES ================= -->
+<section class="block alt" id="features">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="kicker"><span lang="th">ฟีเจอร์</span><span lang="en">Features</span></span>
+      <h2><span lang="th">ใช้ง่ายสำหรับทุกคนในร้าน</span><span lang="en">Simple for everyone in the shop</span></h2>
+      <p><span lang="th">แต่ละคนเห็นเฉพาะส่วนที่ตัวเองต้องใช้</span><span lang="en">Each person only sees the part they need.</span></p>
+    </div>
+    <div class="cards">
+      <div class="card">
+        <div class="ico"><svg><use href="#i-phone"/></svg></div>
+        <h3><span lang="th">ลูกค้า</span><span lang="en">Customers</span></h3>
+        <p><span lang="th">ต่อ Wi-Fi ร้าน หน้าลงทะเบียนเด้งขึ้นเอง กรอกเลขบัตรประชาชนกับกดยินยอม แล้วรอพนักงานอนุมัติ</span>
+          <span lang="en">Join the shop Wi-Fi and the sign-up page pops up by itself. Enter the national ID, give consent, and wait for staff approval.</span></p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg><use href="#i-person"/></svg></div>
+        <h3><span lang="th">พนักงาน</span><span lang="en">Staff</span></h3>
+        <p><span lang="th">หน้าแอดมิน <code>https://admin.cafe.wifi</code> จากมือถือหรือคอมในร้าน: อนุมัติ/ปฏิเสธ, ต่อเวลา, ปิดสิทธิ์, ดูเครื่องที่ใช้อยู่</span>
+          <span lang="en">Admin page at <code>https://admin.cafe.wifi</code> from any phone or PC in the shop: approve or reject, extend time, revoke, see active devices.</span></p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg><use href="#i-store"/></svg></div>
+        <h3><span lang="th">เจ้าของร้าน</span><span lang="en">Owners</span></h3>
+        <p><span lang="th">log การเชื่อมต่อและ DNS เก็บตามจำนวนวันที่ตั้ง ตรวจความครบถ้วนด้วย hash ส่งออกหลักฐานได้ และลบข้อมูลเก่าให้อัตโนมัติ</span>
+          <span lang="en">Connection and DNS logs kept for the period you set, integrity-checked by hash, exportable as evidence, and old data purged automatically.</span></p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg><use href="#i-wrench"/></svg></div>
+        <h3><span lang="th">ช่างติดตั้ง</span><span lang="en">Installers</span></h3>
+        <p><span lang="th">flash การ์ดแล้วทำ wizard บนเว็บ 5 ขั้น ระบบตรวจเองว่าเราเตอร์ปิด DHCP และ IPv6 จริงแล้วก่อนยอมให้เปิดใช้งาน</span>
+          <span lang="en">Flash the card, then a 5-step web wizard. The system itself verifies the router's DHCP and IPv6 are really off before going live.</span></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= HOW ================= -->
+<section class="block" id="how">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="kicker"><span lang="th">ทำงานอย่างไร</span><span lang="en">How it works</span></span>
+      <h2><span lang="th">Pi ตัวเดียว สาย LAN เส้นเดียว</span><span lang="en">One Pi, one LAN cable</span></h2>
+      <p><span lang="th">ไม่ต้องเปลี่ยนอุปกรณ์เครือข่ายของร้าน Pi ทำหน้าที่เป็นประตูของลูกค้า ทราฟฟิกทุกอย่างผ่าน portal และถูกบันทึกก่อนออกอินเทอร์เน็ต</span>
+        <span lang="en">Keep the shop's network gear. The Pi becomes the customers' gateway: all traffic passes the portal and is logged before reaching the internet.</span></p>
+    </div>
+    <div class="diagram">
+      <svg viewBox="0 0 900 270" role="img" aria-label="Network diagram">
+        <!-- customers -->
+        <g>
+          <rect class="box" x="10" y="40" width="150" height="190" rx="14"/>
+          <text class="t1" x="85" y="72" text-anchor="middle"><tspan lang="th">มือถือลูกค้า</tspan><tspan lang="en">Customer phones</tspan></text>
+          <g fill="none" stroke="currentColor" style="color:var(--ink-2)" stroke-width="2">
+            <rect x="40" y="96" width="30" height="52" rx="6"/><rect x="100" y="96" width="30" height="52" rx="6"/><rect x="70" y="160" width="30" height="52" rx="6"/>
+          </g>
+        </g>
+        <!-- router -->
+        <rect class="box" x="300" y="40" width="200" height="110" rx="14"/>
+        <text class="t1" x="400" y="76" text-anchor="middle"><tspan lang="th">เราเตอร์ของร้าน</tspan><tspan lang="en">Shop's router</tspan></text>
+        <text class="t2" x="400" y="100" text-anchor="middle"><tspan lang="th">ปล่อย Wi-Fi · ออกเน็ต</tspan><tspan lang="en">Wi-Fi · internet uplink</tspan></text>
+        <text class="t2" x="400" y="122" text-anchor="middle"><tspan lang="th">ปิด DHCP และ IPv6</tspan><tspan lang="en">DHCP &amp; IPv6 turned off</tspan></text>
+        <!-- internet -->
+        <rect class="box" x="720" y="40" width="170" height="110" rx="14"/>
+        <text class="t1" x="805" y="90" text-anchor="middle"><tspan lang="th">อินเทอร์เน็ต</tspan><tspan lang="en">Internet</tspan></text>
+        <!-- pi -->
+        <rect class="box pi" x="300" y="180" width="200" height="80" rx="14"/>
+        <text class="t1" x="400" y="210" text-anchor="middle">Raspberry Pi 4B</text>
+        <text class="t2" x="400" y="234" text-anchor="middle"><tspan lang="th">portal · DHCP · บันทึก log</tspan><tspan lang="en">portal · DHCP · logging</tspan></text>
+        <!-- wires -->
+        <path class="wifi" d="M160 110 C 220 110, 240 95, 300 95"/>
+        <path class="wire" d="M500 95 H 720"/>
+        <path class="wire lan" d="M400 150 V 180"/>
+        <text class="lbl" x="410" y="170"><tspan lang="th">LAN 1 เส้น</tspan><tspan lang="en">1 × LAN</tspan></text>
+        <!-- traffic flow: phone → router → Pi → router → internet -->
+        <path class="flow" d="M160 130 C 230 130, 260 125, 330 150 L 330 180"/>
+        <path class="flow" d="M488 180 L 488 150 C 530 120, 600 115, 720 115"/>
+        <text class="t2" x="200" y="160" style="fill:var(--ok)"><tspan lang="th">ทราฟฟิกลูกค้า</tspan><tspan lang="en">customer traffic</tspan></text>
+      </svg>
+    </div>
+    <div class="diagram-notes">
+      <div><b><span lang="th">1 · ลูกค้าต่อ Wi-Fi ร้าน</span><span lang="en">1 · Customer joins Wi-Fi</span></b>
+        <span lang="th">Pi เป็นคนแจก IP และตั้งตัวเองเป็น gateway</span><span lang="en">The Pi hands out the IP and sets itself as gateway.</span></div>
+      <div><b><span lang="th">2 · ติดหน้า portal</span><span lang="en">2 · Captive portal</span></b>
+        <span lang="th">ยังไม่อนุมัติ = ออกเน็ตไม่ได้ (openNDS + nftables)</span><span lang="en">Not approved = no internet (openNDS + nftables).</span></div>
+      <div><b><span lang="th">3 · พนักงานอนุมัติ</span><span lang="en">3 · Staff approve</span></b>
+        <span lang="th">เครื่องนั้นออกเน็ตได้ตามเวลาที่กำหนด</span><span lang="en">That device gets internet for the allowed time.</span></div>
+      <div><b><span lang="th">4 · บันทึกทุกการเชื่อมต่อ</span><span lang="en">4 · Every connection logged</span></b>
+        <span lang="th">conntrack + DNS ผูกกับตัวผู้ใช้ เก็บพร้อม hash</span><span lang="en">conntrack + DNS tied to the user, stored with hashes.</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= ADMIN ================= -->
+<section class="block alt">
+  <div class="wrap admin-grid">
+    <div class="shot"><img src="img/admin-dashboard.jpg" alt="หน้าแอดมิน / Admin dashboard" width="900" height="520" loading="lazy"></div>
+    <div>
+      <div class="sec-head" style="margin-bottom:22px">
+        <span class="kicker"><span lang="th">หน้าแอดมิน</span><span lang="en">Admin</span></span>
+        <h2><span lang="th">พนักงานจัดการได้จากมือถือ</span><span lang="en">Staff run it from a phone</span></h2>
+      </div>
+      <ul class="ticks">
+        <li><span lang="th"><b>อนุมัติ / ปฏิเสธ</b> คำขอใช้เน็ตของลูกค้า</span><span lang="en"><b>Approve / reject</b> customer requests</span></li>
+        <li><span lang="th"><b>ต่อเวลา และปิดสิทธิ์</b> — ปิดแล้วเน็ตถูกตัดใน ~7–8 วินาที</span><span lang="en"><b>Extend or revoke</b> — internet is cut ~7–8 s after revoking</span></li>
+        <li><span lang="th"><b>สถานะระบบ</b> — service, นาฬิกา, พื้นที่ดิสก์, สำรองข้อมูล เป็นสีเขียว/แดงให้ดูง่าย</span><span lang="en"><b>System status</b> — services, clock, disk, backups shown green/red</span></li>
+        <li><span lang="th"><b>ส่งออกหลักฐาน</b> เมื่อมีหมายศาล</span><span lang="en"><b>Export evidence</b> for a court order</span></li>
+        <li><span lang="th"><b>สำรองกุญแจ</b> เป็นไฟล์ <code>.cwkey</code> ล็อกด้วยรหัสผ่าน</span><span lang="en"><b>Key backup</b> as a password-locked <code>.cwkey</code> file</span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ================= ROUTER REQUIREMENTS ================= -->
+<section class="block" id="router">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="kicker"><span lang="th">เราเตอร์</span><span lang="en">Router</span></span>
+      <h2><span lang="th">เราเตอร์ของร้านต้องมีอะไรบ้าง</span><span lang="en">What the shop's router needs</span></h2>
+      <p><span lang="th">ใช้เราเตอร์เดิมของร้านได้ ไม่ต้องรองรับ VLAN หรือตั้ง route อะไรเพิ่ม แต่ต้องมีคุณสมบัติขั้นต่ำตามนี้
+          ข้อที่เป็น “บังคับ” wizard จะตรวจให้จริงก่อนยอมเปิดระบบ</span>
+        <span lang="en">The shop's existing router works — no VLANs or extra routes needed — as long as it meets these minimums.
+          The wizard actually tests the “required” items before it lets the system go live.</span></p>
+    </div>
+
+    <div class="req-grid">
+      <div class="req must">
+        <span class="req-badge"><span lang="th">บังคับ · wizard ตรวจให้</span><span lang="en">Required · wizard checks</span></span>
+        <h3><span lang="th">ปิด DHCP Server ได้</span><span lang="en">DHCP server can be disabled</span></h3>
+        <p><span lang="th">Pi ต้องเป็นคนแจก IP ให้ลูกค้าเอง ถ้าเราเตอร์ยังแจกอยู่ ลูกค้าจะได้ IP จากเราเตอร์แล้วข้าม portal ทั้งหมด</span>
+          <span lang="en">The Pi must hand out customer IPs. If the router still does, customers get its IPs and skip the portal entirely.</span></p>
+        <small><span lang="th">เมนู: DHCP Server · ทางสำรอง: ลด pool เหลือ 1 IP</span><span lang="en">Menu: DHCP Server · fallback: shrink the pool to 1 IP</span></small>
+      </div>
+      <div class="req must">
+        <span class="req-badge"><span lang="th">บังคับ · wizard ตรวจให้</span><span lang="en">Required · wizard checks</span></span>
+        <h3><span lang="th">ปิด IPv6 ฝั่ง LAN ได้</span><span lang="en">LAN IPv6 can be disabled</span></h3>
+        <p><span lang="th">ระบบรองรับ IPv4 เท่านั้น ถ้าเราเตอร์ยังประกาศ IPv6 ทราฟฟิก IPv6 จะข้าม portal และไม่ถูกบันทึกเลย</span>
+          <span lang="en">The system is IPv4-only. If the router still advertises IPv6, IPv6 traffic bypasses the portal and is never logged.</span></p>
+        <small><span lang="th">เมนู: IPv6, RA, SLAAC, DHCPv6</span><span lang="en">Menu: IPv6, RA, SLAAC, DHCPv6</span></small>
+      </div>
+      <div class="req must">
+        <span class="req-badge"><span lang="th">บังคับ</span><span lang="en">Required</span></span>
+        <h3><span lang="th">Wi-Fi ลูกค้าอยู่วงเดียวกับพอร์ต LAN</span><span lang="en">Customer Wi-Fi bridged to the LAN</span></h3>
+        <p><span lang="th">มือถือลูกค้าต้องคุยกับ Pi ที่เสียบสาย LAN ได้โดยตรง · <b>ใช้ไม่ได้:</b> Guest Network ที่ตัดขาดจาก LAN
+          และ AP ที่ NAT ลูกค้า เพราะ Pi จะเห็นทั้งร้านเป็นเครื่องเดียว log รายคนใช้ไม่ได้</span>
+          <span lang="en">Customer phones must reach the Pi on the LAN port directly · <b>Won't work:</b> a guest network cut off from the LAN,
+          or an AP that NATs clients — the Pi would see the whole shop as one device and per-user logs break.</span></p>
+        <small><span lang="th">Aruba Instant: Client IP assignment = <b>Network assigned</b></span><span lang="en">Aruba Instant: Client IP assignment = <b>Network assigned</b></span></small>
+      </div>
+      <div class="req must">
+        <span class="req-badge"><span lang="th">บังคับ</span><span lang="en">Required</span></span>
+        <h3><span lang="th">พอร์ต LAN ว่าง 1 ช่อง</span><span lang="en">One free LAN port</span></h3>
+        <p><span lang="th">สำหรับสาย LAN เส้นเดียวไปที่ Pi (แนะนำ Gigabit) · Pi ตั้ง IP ของตัวเองเป็น static ในวงของเราเตอร์ให้เอง ไม่ต้องจอง IP</span>
+          <span lang="en">For the single cable to the Pi (Gigabit recommended) · the Pi sets its own static IP in the router's range — no reservation needed.</span></p>
+      </div>
+      <div class="req strong">
+        <span class="req-badge"><span lang="th">ต้องมีก่อนเปิดร้านจริง</span><span lang="en">Needed before going live</span></span>
+        <h3><span lang="th">Access Control / ACL (LAN → WAN)</span><span lang="en">Access Control / ACL (LAN → WAN)</span></h3>
+        <p><span lang="th">ตั้งให้<b>ออกเน็ตได้เฉพาะ IP ของ Pi</b> · วัดจริงแล้ว: ถ้าไม่มี ลูกค้าที่ตั้ง IP เองออกเน็ตได้ทันทีโดยไม่มีหลักฐาน ·
+          ถ้ามี ปิดช่องโหว่นี้ได้ 100% (หน้าแอดมินจะแจ้งเตือนถ้าตรวจพบ)</span>
+          <span lang="en">Allow <b>only the Pi's IP</b> out to the internet · measured: without it, a customer with a self-set IP gets online instantly with no evidence;
+          with it, the hole is closed 100% (the admin page warns if it detects this).</span></p>
+        <small><span lang="th">เมนู: Access Control, IP Filtering, Firewall Rules</span><span lang="en">Menu: Access Control, IP Filtering, Firewall Rules</span></small>
+      </div>
+      <div class="req nice">
+        <span class="req-badge"><span lang="th">แนะนำ</span><span lang="en">Recommended</span></span>
+        <h3><span lang="th">Client / AP Isolation</span><span lang="en">Client / AP isolation</span></h3>
+        <p><span lang="th">กันลูกค้าดักข้อมูลหรือมองเห็นเครื่องกันเอง — ต้องทดสอบว่ายังคุยกับ Pi ได้ อย่าเชื่อคำอธิบายในเมนู</span>
+          <span lang="en">Stops customers from seeing or sniffing each other — test that clients can still reach the Pi; don't trust the menu text.</span></p>
+        <small><span lang="th">บางยี่ห้ออยู่ในช่อง “Guest Network” ของ SSID</span><span lang="en">Some brands put it under the SSID's “Guest Network”</span></small>
+      </div>
+      <div class="req nice">
+        <span class="req-badge"><span lang="th">แนะนำ</span><span lang="en">Recommended</span></span>
+        <h3><span lang="th">ปิด UPnP ได้</span><span lang="en">UPnP can be disabled</span></h3>
+        <p><span lang="th">ลดโอกาสที่อุปกรณ์ในวงเปิดพอร์ตออกอินเทอร์เน็ตเอง ความเสี่ยงเล็กน้อยถ้าปิดไม่ได้</span>
+          <span lang="en">Keeps devices from opening ports to the internet by themselves; a small risk if it can't be turned off.</span></p>
+      </div>
+    </div>
+
+    <div class="req-foot">
+      <div class="card">
+        <h3><svg class="h-ico"><use href="#i-check"/></svg><span lang="th">ทดสอบแล้วกับอุปกรณ์จริง</span><span lang="en">Tested with real gear</span></h3>
+        <ul class="ticks">
+          <li><span lang="th"><b>TP-Link ER706W</b> (Omada) — ปิด DHCP/IPv6 ได้ (ดักฟัง RA 40 วินาทีไม่พบสักแพ็กเก็ต), Access Control ปิดช่องโหว่ตั้ง IP เองได้ 100%,
+            ช่อง “Guest Network” กันลูกค้าคุยกันเองแต่ยังถึง Pi ได้</span>
+            <span lang="en"><b>TP-Link ER706W</b> (Omada) — DHCP/IPv6 off (no RA seen in 40 s), Access Control closed the static-IP bypass 100%,
+            its “Guest Network” isolates clients yet still lets them reach the Pi</span></li>
+          <li><span lang="th"><b>Aruba Instant AP-515</b> — ใช้ได้เมื่อตั้ง SSID เป็น Network assigned (bridge) และปิด captive portal ของ AP เอง</span>
+            <span lang="en"><b>Aruba Instant AP-515</b> — works with the SSID set to Network assigned (bridge) and the AP's own captive portal off</span></li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3><svg class="h-ico"><use href="#i-info"/></svg><span lang="th">เราเตอร์ที่ค่ายเน็ตแถมมา</span><span lang="en">ISP-supplied routers</span></h3>
+        <p><span lang="th">บางรุ่นอาจไม่มีหรือซ่อนเมนูปิด DHCP / IPv6 / Access Control — ให้สำรวจตาม<a href="#step-2">ขั้น 2</a>ก่อนวันติดตั้ง
+          ถ้าขาดข้อบังคับ ทางออกคือใช้เราเตอร์ของร้านเองที่มีคุณสมบัติครบ ต่อ WAN เข้าเราเตอร์ค่าย แล้วเสียบ Pi กับเราเตอร์ตัวนั้น
+          (โครงสร้างเดียวกับที่ใช้ทดสอบ ER706W)</span>
+          <span lang="en">Some models may lack or hide the DHCP / IPv6 / Access Control menus — survey it as in <a href="#step-2">step 2</a> before install day.
+          If a required item is missing, put the shop's own capable router behind the ISP box (its WAN into the ISP router) and plug the Pi into that one —
+          the same layout used to test the ER706W.</span></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= INSTALL GUIDE ================= -->
+<section class="block" id="install" style="border-top:1px solid var(--line)">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="kicker"><span lang="th">คู่มือติดตั้ง</span><span lang="en">Install guide</span></span>
+      <h2><span lang="th">ติดตั้งเองได้ ไม่ต้องพิมพ์คำสั่งเลย</span><span lang="en">Install it yourself, no commands</span></h2>
+      <p><span lang="th">ทุกขั้นแยกให้เห็นว่า<b>ช่างทำอะไร</b> และ <b>Pi ทำอะไรเองเบื้องหลัง</b> ไม่ต้องรู้ล่วงหน้าว่าร้านใช้วง IP อะไร</span>
+        <span lang="en">Every step shows <b>what you do</b> and <b>what the Pi does by itself</b>. You don't need to know the shop's IP range in advance.</span></p>
+    </div>
+
+    <div class="route">
+      <div class="route-group">
+        <span lang="th">ที่บ้าน</span><span lang="en">At home</span>
+        <div class="route-steps">
+          <a href="#step-0"><i>0</i><span lang="th">เตรียมของ</span><span lang="en">Gather</span></a>
+          <a href="#step-1"><i>1</i><span lang="th">Flash</span><span lang="en">Flash</span> <small>~5′</small></a>
+        </div>
+      </div>
+      <div class="route-group">
+        <span lang="th">ที่ร้าน</span><span lang="en">At the shop</span>
+        <div class="route-steps">
+          <a href="#step-2"><i>2</i><span lang="th">สำรวจเราเตอร์</span><span lang="en">Survey router</span> <small>~10′</small></a>
+          <a href="#step-3"><i>3</i><span lang="th">เสียบ + บูต</span><span lang="en">Plug &amp; boot</span> <small>~3′</small></a>
+          <a href="#step-4"><i>4</i>Wizard <small>~5′</small></a>
+          <a href="#step-5"><i>5</i><span lang="th">ปิด DHCP/IPv6</span><span lang="en">DHCP/IPv6 off</span> <small>~5′</small></a>
+          <a href="#step-6"><i>6</i><span lang="th">ทดสอบ</span><span lang="en">Test</span> <small>~5′</small></a>
+          <a href="#step-7"><i>7</i><span lang="th">ส่งมอบ</span><span lang="en">Hand over</span></a>
+        </div>
+      </div>
+      <div class="route-total">
+        <span lang="th">เสียบไฟจนระบบพร้อมใช้ <b>≈ 6 นาที</b> (วัดจริง)</span><span lang="en">Power-on to ready <b>≈ 6 min</b> (measured)</span>
+        <span lang="th">รวมเวลาหน้างาน <b>≈ 30 นาที</b></span><span lang="en">Total on-site time <b>≈ 30 min</b></span>
+      </div>
+    </div>
+
+    <div class="timeline">
+
+      <!-- STEP 0 -->
+      <article class="step" id="step-0">
+        <div class="step-num">0</div>
+        <div class="step-head">
+          <h3><span lang="th">เตรียมของ</span><span lang="en">Gather the parts</span></h3>
+          <span class="pill"><span lang="th">ที่บ้าน</span><span lang="en">At home</span></span>
+        </div>
+        <div class="tbl">
+          <table>
+            <thead><tr><th><span lang="th">ของ</span><span lang="en">Item</span></th><th><span lang="th">หมายเหตุ</span><span lang="en">Notes</span></th></tr></thead>
+            <tbody>
+              <tr><td><span lang="th">Raspberry Pi 4B + อะแดปเตอร์ไฟของแท้ (5V 3A)</span><span lang="en">Raspberry Pi 4B + official power supply (5V 3A)</span></td>
+                <td><span lang="th">ไฟไม่พอทำให้การ์ดเสียง่าย</span><span lang="en">Weak power corrupts SD cards</span></td></tr>
+              <tr><td><span lang="th">SD card ≥ 8 GB</span><span lang="en">SD card ≥ 8 GB</span></td>
+                <td><span lang="th">แนะนำ 16 GB ขึ้นไป รุ่น A1/A2</span><span lang="en">16 GB+ A1/A2 recommended</span></td></tr>
+              <tr><td><span lang="th">สาย LAN 1 เส้น</span><span lang="en">One LAN cable</span></td>
+                <td><span lang="th">จากช่อง LAN ของเราเตอร์ร้านไปที่ Pi</span><span lang="en">From a LAN port on the shop router to the Pi</span></td></tr>
+              <tr><td><span lang="th">คอม Windows + Raspberry Pi Imager</span><span lang="en">Windows PC + Raspberry Pi Imager</span></td>
+                <td><span lang="th">ตัวช่วยเตรียมการ์ด <code>prepare-sd.ps1</code> เป็น PowerShell</span><span lang="en">Card helper <code>prepare-sd.ps1</code> is PowerShell</span></td></tr>
+              <tr><td><span lang="th">(แนะนำ) USB ตั้ง label <code>CAFEBACKUP</code></span><span lang="en">(Recommended) USB stick labelled <code>CAFEBACKUP</code></span></td>
+                <td><span lang="th">สำรองข้อมูลนอก SD ทุกคืน — <a href="https://github.com/lenulk/Cafe-wifi-Image/blob/main/docs/backup-usb.md">วิธีเตรียม</a></span>
+                  <span lang="en">Nightly off-card backup — <a href="https://github.com/lenulk/Cafe-wifi-Image/blob/main/docs/backup-usb.md">how to prepare (TH)</a></span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <!-- STEP 1 -->
+      <article class="step" id="step-1">
+        <div class="step-num">1</div>
+        <div class="step-head">
+          <h3><span lang="th">Flash การ์ด</span><span lang="en">Flash the card</span></h3>
+          <span class="pill"><span lang="th">ที่บ้าน</span><span lang="en">At home</span></span><span class="pill time">~5′</span>
+        </div>
+        <div class="step-body two">
+          <div class="who">
+            <div class="who-label"><svg><use href="#i-person"/></svg><span lang="th">ช่างทำ</span><span lang="en">You do</span></div>
+            <ol>
+              <li><span lang="th"><a class="js-dl" href="https://github.com/lenulk/Cafe-wifi-Image/releases/latest">ดาวน์โหลด</a> <code>cafe-wifi-&lt;รุ่น&gt;.img.xz</code> → Raspberry Pi Imager → Device: <b>Raspberry Pi 4</b> → OS: <b>Use custom</b> → เลือกไฟล์</span>
+                <span lang="en"><a class="js-dl" href="https://github.com/lenulk/Cafe-wifi-Image/releases/latest">Download</a> <code>cafe-wifi-&lt;version&gt;.img.xz</code> → Raspberry Pi Imager → Device: <b>Raspberry Pi 4</b> → OS: <b>Use custom</b> → pick the file</span></li>
+              <li><span lang="th">Storage: เลือก SD card — <b>ตรวจชื่อและขนาดให้ดี</b> ห้ามเลือกดิสก์อื่น</span>
+                <span lang="en">Storage: choose the SD card — <b>double-check name and size</b></span></li>
+              <li><span lang="th">ถามเรื่อง OS customisation ให้ตอบ <b>No</b> (ค่าทั้งหมดตั้งผ่าน wizard แทน) → Write แล้วรอ verify</span>
+                <span lang="en">When asked about OS customisation, answer <b>No</b> (the wizard handles settings) → Write and wait for verify</span></li>
+              <li><span lang="th">ดาวน์โหลด <a href="https://github.com/lenulk/Cafe-wifi-Image/blob/main/image/prepare-sd.ps1"><code>prepare-sd.ps1</code></a> แล้วรัน ตัวช่วยหาไดรฟ์ <code>bootfs</code> เอง ถามชื่อร้าน และ SSH key ของช่าง (ไม่บังคับ)</span>
+                <span lang="en">Download <a href="https://github.com/lenulk/Cafe-wifi-Image/blob/main/image/prepare-sd.ps1"><code>prepare-sd.ps1</code></a> and run it. It finds the <code>bootfs</code> drive, asks for the shop name and an optional SSH key</span></li>
+              <li><span lang="th"><b>จด setup code</b> ที่ได้ (เช่น <code>K7QM-29XD</code>) หรือติดสติกเกอร์ไว้ที่กล่อง Pi</span>
+                <span lang="en"><b>Write down the setup code</b> (e.g. <code>K7QM-29XD</code>) or stick it on the Pi case</span></li>
+            </ol>
+            <p style="margin:12px 0 0"><code style="display:inline-block;white-space:normal">powershell -ExecutionPolicy Bypass -File prepare-sd.ps1</code></p>
+          </div>
+          <div class="who pi">
+            <div class="who-label"><svg><use href="#i-chip"/></svg><span lang="th">เบื้องหลัง</span><span lang="en">Behind the scenes</span></div>
+            <ul>
+              <li><span lang="th">Imager ตรวจ SHA-256 ก่อนเขียน และ verify ซ้ำหลังเขียน</span><span lang="en">Imager checks SHA-256 before writing and verifies afterwards</span></li>
+              <li><span lang="th">ตัวช่วยเขียน <code>cafewifi.conf</code> ลงส่วน boot ซึ่ง Pi อ่านตอนบูตครั้งแรก</span><span lang="en">The helper writes <code>cafewifi.conf</code> to the boot partition for first boot</span></li>
+            </ul>
+            <div class="callout ok" style="margin-top:14px"><svg><use href="#i-shield"/></svg>
+              <p><span lang="th"><b>ใน image ไม่มี</b>รหัสผ่าน กุญแจ ใบรับรอง หรือ SSH host key ใด ๆ — สร้างใหม่บน Pi แต่ละเครื่อง</span>
+                <span lang="en"><b>The image holds no</b> passwords, keys, certificates or SSH host keys — each Pi makes its own</span></p></div>
+          </div>
+        </div>
+      </article>
+
+      <!-- STEP 2 -->
+      <article class="step" id="step-2">
+        <div class="step-num">2</div>
+        <div class="step-head">
+          <h3><span lang="th">สำรวจเราเตอร์ร้าน</span><span lang="en">Survey the shop's router</span></h3>
+          <span class="pill"><span lang="th">ที่ร้าน · ยังไม่แก้อะไร</span><span lang="en">At the shop · change nothing yet</span></span><span class="pill time">~10′</span>
+        </div>
+        <div class="step-body">
+          <p style="margin:0"><span lang="th">เข้าหน้าเว็บของเราเตอร์ แล้วหาเมนูเหล่านี้ (รายละเอียดแต่ละข้อดูที่ <a href="#router">เราเตอร์ต้องมีอะไรบ้าง</a>):</span><span lang="en">Open the router's web page and look for these menus (details in <a href="#router">router requirements</a>):</span></p>
+          <div class="tbl">
+            <table>
+              <thead><tr><th><span lang="th">ต้องมี</span><span lang="en">Need</span></th><th><span lang="th">ชื่อในเมนู</span><span lang="en">Menu names</span></th><th><span lang="th">ถ้าไม่มี</span><span lang="en">If missing</span></th></tr></thead>
+              <tbody>
+                <tr><td><b><span lang="th">ปิด DHCP ได้</span><span lang="en">Can disable DHCP</span></b></td><td>DHCP Server</td>
+                  <td><span lang="th"><b>หยุดก่อน</b> — ลูกค้าจะได้ IP จากเราเตอร์แล้วข้าม portal (ทางสำรอง: ลด pool เหลือ 1 IP)</span>
+                    <span lang="en"><b>Stop</b> — customers would get IPs from the router and skip the portal (workaround: shrink the pool to 1 IP)</span></td></tr>
+                <tr><td><b><span lang="th">ปิด IPv6 ฝั่ง LAN ได้</span><span lang="en">Can disable LAN IPv6</span></b></td><td>IPv6, RA, SLAAC, DHCPv6</td>
+                  <td><span lang="th">ทราฟฟิก IPv6 จะข้าม portal ทั้งหมด</span><span lang="en">All IPv6 traffic would bypass the portal</span></td></tr>
+                <tr><td><span lang="th">Access Control (LAN→WAN)</span><span lang="en">Access Control (LAN→WAN)</span></td><td>Access Control, IP Filtering, Firewall Rules</td>
+                  <td><span lang="th">ลูกค้าที่ตั้ง IP เองยังข้าม portal ได้ (ระบบแจ้งเตือนในหน้าแอดมิน)</span><span lang="en">Static-IP users could bypass (the admin page warns you)</span></td></tr>
+                <tr><td><span lang="th">Client Isolation</span><span lang="en">Client Isolation</span></td><td>AP Isolation, Client Isolation</td>
+                  <td><span lang="th">ลูกค้ามองเห็นเครื่องกันเองได้</span><span lang="en">Customers can see each other's devices</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="callout"><svg><use href="#i-info"/></svg>
+            <p><span lang="th"><b>Guest Network</b> บางยี่ห้อตัดขาดจากวง LAN ทั้งหมด ทำให้ลูกค้าคุยกับ Pi ไม่ได้ — ต้องทดสอบจริงเสมอ อย่าเชื่อคำอธิบายในเมนู</span>
+              <span lang="en">Some brands' <b>Guest Network</b> is fully cut off from the LAN, so customers can't reach the Pi — always test, don't trust the menu text.</span></p></div>
+          <div class="callout warn"><svg><use href="#i-alert"/></svg>
+            <p><span lang="th"><b>อย่าเพิ่งปิด DHCP ของเราเตอร์</b> — Pi ต้องใช้ขอ IP ชั่วคราวในขั้น 3</span>
+              <span lang="en"><b>Don't turn off the router's DHCP yet</b> — the Pi needs it for a temporary IP in step 3.</span></p></div>
+        </div>
+      </article>
+
+      <!-- STEP 3 -->
+      <article class="step" id="step-3">
+        <div class="step-num">3</div>
+        <div class="step-head">
+          <h3><span lang="th">เสียบสายและบูตครั้งแรก</span><span lang="en">Plug in and first boot</span></h3>
+          <span class="pill time">~3′</span>
+        </div>
+        <div class="step-body two">
+          <div class="who">
+            <div class="who-label"><svg><use href="#i-person"/></svg><span lang="th">ช่างทำ</span><span lang="en">You do</span></div>
+            <ol>
+              <li><span lang="th">ใส่การ์ดเข้า Pi</span><span lang="en">Insert the card</span></li>
+              <li><span lang="th">ต่อสาย LAN จากช่อง LAN ของเราเตอร์ไปที่ Pi</span><span lang="en">Connect a LAN port of the router to the Pi</span></li>
+              <li><span lang="th">เสียบไฟ แล้วดูไฟ LED เขียว (ACT)</span><span lang="en">Power on and watch the green ACT LED</span></li>
+            </ol>
+            <div class="tbl" style="margin-top:14px">
+              <table style="min-width:0">
+                <tbody>
+                  <tr><td><span class="led fast"></span><span lang="th">กะพริบถี่</span><span lang="en">Fast blink</span></td>
+                    <td><span lang="th">กำลังตั้งค่าครั้งแรก — <b>ห้ามถอดไฟ</b></span><span lang="en">First-time setup — <b>don't unplug</b></span></td></tr>
+                  <tr><td><span class="led slow"></span><span lang="th">heartbeat ช้า ๆ</span><span lang="en">Slow heartbeat</span></td>
+                    <td><span lang="th">พร้อมเข้า wizard ✓</span><span lang="en">Ready for the wizard ✓</span></td></tr>
+                  <tr><td><span class="led err"></span><span lang="th">3 ครั้งแล้วหยุด ซ้ำ</span><span lang="en">3 blinks, pause, repeat</span></td>
+                    <td><span lang="th">ผิดพลาด — ดู <a href="#faq">แก้ปัญหา</a></span><span lang="en">Error — see <a href="#faq">troubleshooting</a></span></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="who pi">
+            <div class="who-label"><svg><use href="#i-chip"/></svg><span lang="th">Pi ทำเอง (ครั้งเดียว)</span><span lang="en">The Pi does (once)</span></div>
+            <ol>
+              <li><span lang="th">ขยายพื้นที่ให้เต็มการ์ด</span><span lang="en">Expands the filesystem to the full card</span></li>
+              <li><span lang="th">สร้าง machine-id และ SSH host key ใหม่</span><span lang="en">Generates a new machine-id and SSH host keys</span></li>
+              <li><span lang="th"><b>สร้างความลับประจำเครื่อง</b>: กุญแจเข้ารหัสเลขบัตร, pepper, session key, รหัสฐานข้อมูล, setup token ฯลฯ</span>
+                <span lang="en"><b>Creates per-device secrets</b>: ID encryption key, pepper, session key, DB password, setup token…</span></li>
+              <li><span lang="th">ตั้ง MariaDB และสร้างตาราง</span><span lang="en">Sets up MariaDB and the schema</span></li>
+              <li><span lang="th">อ่าน <code>cafewifi.conf</code> → ตั้งชื่อร้าน ใส่ SSH key แล้ว<b>ลบไฟล์ทิ้ง</b></span><span lang="en">Reads <code>cafewifi.conf</code>, applies it, then <b>deletes it</b></span></li>
+              <li><span lang="th">ขอ IP ชั่วคราวจากเราเตอร์ แล้วประกาศชื่อ <code>cafewifi.local</code></span><span lang="en">Gets a temporary IP and announces <code>cafewifi.local</code></span></li>
+              <li><span lang="th">เข้าโหมดตั้งค่า — ยังไม่ยุ่งกับลูกค้า</span><span lang="en">Enters setup mode — customers untouched yet</span></li>
+            </ol>
+            <p style="margin:12px 0 0;font-size:.9rem;color:var(--ink-2)"><span lang="th">ไฟดับกลางทาง? เสียบใหม่ได้เลย ทุกขั้นทำซ้ำได้โดยไม่สร้างกุญแจทับของเดิม</span>
+              <span lang="en">Power cut midway? Just plug back in — every step is safely repeatable and never overwrites keys.</span></p>
+          </div>
+        </div>
+      </article>
+
+      <!-- STEP 4 -->
+      <article class="step" id="step-4">
+        <div class="step-num">4</div>
+        <div class="step-head">
+          <h3>Setup wizard</h3>
+          <span class="pill"><span lang="th">จากมือถือ</span><span lang="en">From a phone</span></span><span class="pill time">~5′</span>
+        </div>
+        <div class="step-body">
+          <p style="margin:0"><span lang="th">มือถือต่อ Wi-Fi ร้าน แล้วเปิด <code>http://cafewifi.local</code> (เปิดไม่ได้ให้ดู IP ของ Pi ในหน้า DHCP client list ของเราเตอร์ แล้วเปิดด้วย IP แทน)</span>
+            <span lang="en">On a phone joined to the shop Wi-Fi, open <code>http://cafewifi.local</code> (if it won't load, find the Pi's IP in the router's DHCP client list and use that).</span></p>
+          <div class="wiz">
+            <div><b><i>①</i><span lang="th">ยืนยันตัวตน</span><span lang="en">Verify</span></b>
+              <span lang="th">กรอก setup code · ผิด 5 ครั้งล็อก 15 นาที</span><span lang="en">Enter the setup code · 5 wrong tries lock it for 15 min</span></div>
+            <div><b><i>②</i><span lang="th">สร้างแอดมิน</span><span lang="en">Create admin</span></b>
+              <span lang="th">ตั้งบัญชีแอดมินคนแรก หรือ “กู้คืนจากเครื่องเดิม”</span><span lang="en">First admin account, or “restore from old device”</span></div>
+            <div><b><i>③</i><span lang="th">เครือข่าย + ร้าน</span><span lang="en">Network + shop</span></b>
+              <span lang="th">ระบบเสนอค่าจาก DHCP lease ให้เอง · ตั้งอายุ log (≥ 90 วัน)</span><span lang="en">Values suggested from the DHCP lease · set log retention (≥ 90 days)</span></div>
+            <div><b><i>④</i><span lang="th">เราเตอร์</span><span lang="en">Router</span></b>
+              <span lang="th">ทำตามขั้น 5 แล้วกด “ตรวจสอบ”</span><span lang="en">Do step 5, then press “Check”</span></div>
+            <div><b><i>⑤</i><span lang="th">บันทึก</span><span lang="en">Save</span></b>
+              <span lang="th">ตรวจซ้ำแล้วเปิดระบบ · wizard ปิดถาวร</span><span lang="en">Re-checks, goes live · wizard closes for good</span></div>
+          </div>
+          <div class="shot-row">
+            <figure><div class="shot"><img src="img/wizard-3-network.jpg" alt="" width="469" height="1015" loading="lazy"></div>
+              <figcaption><span lang="th">③ ระบบเสนอค่าเครือข่ายให้</span><span lang="en">③ Network values suggested</span></figcaption></figure>
+            <figure><div class="shot"><img src="img/wizard-4-router-check.jpg" alt="" width="469" height="1015" loading="lazy"></div>
+              <figcaption><span lang="th">④ DHCP เราเตอร์ยังเปิด</span><span lang="en">④ Router DHCP still on</span></figcaption></figure>
+            <figure><div class="shot"><img src="img/wizard-4-router-ok.jpg" alt="" width="469" height="1015" loading="lazy"></div>
+              <figcaption><span lang="th">④ ปิดแล้ว ✓ บันทึกได้</span><span lang="en">④ Off ✓ ready to save</span></figcaption></figure>
+          </div>
+        </div>
+      </article>
+
+      <!-- STEP 5 -->
+      <article class="step" id="step-5">
+        <div class="step-num">5</div>
+        <div class="step-head">
+          <h3><span lang="th">ตั้งค่าเราเตอร์</span><span lang="en">Configure the router</span></h3>
+          <span class="pill"><span lang="th">wizard จะบอกให้ทำตอนนี้</span><span lang="en">The wizard tells you when</span></span><span class="pill time">~5′</span>
+        </div>
+        <div class="step-body two">
+          <div class="who">
+            <div class="who-label"><svg><use href="#i-person"/></svg><span lang="th">ช่างทำ 3 อย่างที่เราเตอร์</span><span lang="en">Three things on the router</span></div>
+            <ol>
+              <li><span lang="th"><b>ปิด DHCP</b> ของเราเตอร์</span><span lang="en"><b>Turn off</b> the router's <b>DHCP</b></span></li>
+              <li><span lang="th"><b>ปิด IPv6</b> ฝั่ง LAN</span><span lang="en"><b>Turn off LAN IPv6</b></span></li>
+              <li><span lang="th">เปิด Client Isolation (ถ้ามี)</span><span lang="en">Enable Client Isolation (if available)</span></li>
+            </ol>
+            <p style="margin:12px 0 0"><span lang="th">แล้วกลับมากด <b>“ตรวจสอบ”</b> ใน wizard</span><span lang="en">Then press <b>“Check”</b> in the wizard.</span></p>
+          </div>
+          <div class="who pi">
+            <div class="who-label"><svg><use href="#i-chip"/></svg><span lang="th">Pi ตรวจให้</span><span lang="en">The Pi verifies</span></div>
+            <ul>
+              <li><span lang="th"><b>DHCP:</b> ส่ง DHCPDISCOVER ซ้ำ ๆ 20 วินาที ดูว่ามีใครตอบ OFFER ไหม</span><span lang="en"><b>DHCP:</b> sends DHCPDISCOVER for 20 s and watches for any OFFER</span></li>
+              <li><span lang="th"><b>IPv6:</b> ฟัง Router Advertisement 10 วินาที</span><span lang="en"><b>IPv6:</b> listens for Router Advertisements for 10 s</span></li>
+              <li><span lang="th">ผ่านครบ ปุ่ม “บันทึกและเปิดระบบ” จึงขึ้น → เปิด dnsmasq, openNDS, nftables, HTTPS</span><span lang="en">Only when both pass does “Save and go live” appear → dnsmasq, openNDS, nftables, HTTPS start</span></li>
+            </ul>
+          </div>
+          <div class="callout" style="grid-column:1/-1"><svg><use href="#i-info"/></svg>
+            <p><span lang="th">ต้องปิด DHCP ของเราเตอร์ก่อน Pi ค่อยเปิดของตัวเอง ถ้ามีสองตัวจะแย่งกันจ่าย IP — ระบบไม่ยอมไปต่อจนกว่าจะตรวจผ่าน ·
+              ระหว่างบันทึก wizard จะเงียบไป 1–3 นาทีเป็นเรื่องปกติ</span>
+              <span lang="en">The router's DHCP must be off before the Pi starts its own — two DHCP servers fight over clients, so the wizard refuses to continue until the check passes.
+              The wizard goes quiet for 1–3 minutes while saving; that's normal.</span></p></div>
+        </div>
+      </article>
+
+      <!-- STEP 6 -->
+      <article class="step" id="step-6">
+        <div class="step-num">6</div>
+        <div class="step-head">
+          <h3><span lang="th">ทดสอบ</span><span lang="en">Test</span></h3>
+          <span class="pill time">~5′</span>
+        </div>
+        <div class="who">
+          <ol>
+            <li><span lang="th">ลืม Wi-Fi ร้านแล้วต่อใหม่ → หน้า portal ต้องเด้งขึ้นเอง</span><span lang="en">Forget and re-join the shop Wi-Fi → the portal should pop up</span></li>
+            <li><span lang="th">ลงทะเบียนด้วยข้อมูลทดสอบ</span><span lang="en">Register with test data</span></li>
+            <li><span lang="th">ติดตั้งใบรับรองของร้าน (ขั้น 7) แล้วเปิด <code>https://admin.cafe.wifi</code> อนุมัติคำขอ</span><span lang="en">Install the shop certificate (step 7), open <code>https://admin.cafe.wifi</code> and approve</span></li>
+            <li><span lang="th">มือถือต้องเข้าเน็ตได้</span><span lang="en">The phone should now reach the internet</span></li>
+            <li><span lang="th">หน้าแอดมิน → <b>สถานะระบบ</b> ต้องเขียวทุกข้อ</span><span lang="en">Admin → <b>System status</b> should be all green</span></li>
+            <li><span lang="th">ลบข้อมูลทดสอบในหน้าแอดมิน</span><span lang="en">Delete the test data in the admin page</span></li>
+          </ol>
+        </div>
+      </article>
+
+      <!-- STEP 7 -->
+      <article class="step" id="step-7">
+        <div class="step-num">7</div>
+        <div class="step-head">
+          <h3><span lang="th">ส่งมอบร้าน</span><span lang="en">Hand over to the shop</span></h3>
+          <span class="pill"><span lang="th">ติ๊กเช็กได้</span><span lang="en">Tick as you go</span></span>
+        </div>
+        <div class="step-body two">
+          <div class="who">
+            <ul class="checklist">
+              <li><label><input type="checkbox"><span><span lang="th">เสียบ USB <code>CAFEBACKUP</code> → หน้าสถานะขึ้น “สำรองข้อมูลนอกเครื่อง ✓”</span><span lang="en">Plug in the <code>CAFEBACKUP</code> USB → status shows “off-device backup ✓”</span></span></label></li>
+              <li><label><input type="checkbox"><span><span lang="th"><b>ดาวน์โหลดไฟล์สำรองกุญแจ</b> <code>.cwkey</code></span><span lang="en"><b>Download the key backup</b> <code>.cwkey</code></span>
+                <small lang="th">เมนูสำรองกุญแจ → ตั้งรหัสล็อกไฟล์ ≥ 12 ตัว · เก็บนอกเครื่อง ≥ 2 ที่ · ห้ามเก็บใน USB อันเดียวกับไฟล์สำรอง</small>
+                <small lang="en">Key backup menu → lock password ≥ 12 chars · keep in ≥ 2 places off the device · never on the backup USB</small></span></label></li>
+              <li><label><input type="checkbox"><span><span lang="th">ตั้ง Access Control ให้<b>ออกเน็ตได้เฉพาะ IP ของ Pi</b> แล้วทดสอบ</span><span lang="en">Set Access Control so <b>only the Pi's IP</b> can reach the internet, then test</span></span></label></li>
+              <li><label><input type="checkbox"><span><span lang="th"><b>ติดตั้งใบรับรองของร้าน</b>บนเครื่องพนักงานทุกเครื่อง</span><span lang="en"><b>Install the shop certificate</b> on every staff device</span>
+                <small lang="th">เปิด <code>http://10.10.0.1:8080/cafe-wifi.crt</code> → ติดตั้งเป็น “ใบรับรอง CA” → เปิดหน้าแอดมินได้ไม่มีหน้าเตือน แม้เครื่องยังไม่ได้อนุมัติ</small>
+                <small lang="en">Open <code>http://10.10.0.1:8080/cafe-wifi.crt</code> → install as a “CA certificate” → admin opens with no warning, even unapproved</small></span></label></li>
+              <li><label><input type="checkbox"><span><span lang="th">สอนพนักงาน: อนุมัติ · ดูรายชื่อ · ส่งออกหลักฐาน</span><span lang="en">Train staff: approve · view list · export evidence</span></span></label></li>
+              <li><label><input type="checkbox"><span><span lang="th">ให้ร้านเปลี่ยนรหัสผ่านแอดมินเป็นของร้านเอง</span><span lang="en">Have the shop set its own admin password</span></span></label></li>
+            </ul>
+          </div>
+          <div class="callout warn" style="align-self:start"><svg><use href="#i-key"/></svg>
+            <p><span lang="th"><b>สำคัญที่สุด:</b> ถ้าการ์ดเสียโดยไม่มีไฟล์ <code>.cwkey</code> จะถอดเลขบัตรที่เก็บไว้ไม่ได้อีก — ไฟล์สำรองใน USB มีแค่ฐานข้อมูล <b>ไม่มีกุญแจ</b></span>
+              <span lang="en"><b>Most important:</b> if the card dies without the <code>.cwkey</code> file, stored ID numbers can never be decrypted again — the USB backup holds the database only, <b>not the key</b>.</span></p></div>
+        </div>
+      </article>
+    </div>
+
+    <!-- FAQ -->
+    <div id="faq" style="margin-top:12px">
+      <h3 style="font-size:1.3rem;margin-bottom:16px"><span lang="th">แก้ปัญหา</span><span lang="en">Troubleshooting</span></h3>
+      <details class="faq">
+        <summary><span lang="th">เปิด cafewifi.local ไม่ได้</span><span lang="en">cafewifi.local won't open</span></summary>
+        <div><p><span lang="th">มือถือ Android บางรุ่นไม่รองรับ mDNS — ดู IP ของ Pi ในหน้าเราเตอร์แล้วเปิดด้วย IP แทน</span>
+          <span lang="en">Some Android phones don't support mDNS — find the Pi's IP on the router page and open that instead.</span></p></div>
+      </details>
+      <details class="faq">
+        <summary><span lang="th">SD card เสีย ต้องเปลี่ยนการ์ด</span><span lang="en">The SD card died</span></summary>
+        <div><p><span lang="th">flash การ์ดใหม่ → เสียบ USB <code>CAFEBACKUP</code> ของเครื่องเดิม → wizard ขั้น ② กด <b>“กู้คืนจากเครื่องเดิม”</b> → เลือกไฟล์ <code>.cwkey</code> + ใส่รหัสผ่าน →
+          ข้อมูลลูกค้า, log และบัญชีพนักงานกลับมาครบ (ระบบตรวจก่อนว่ากุญแจถอดข้อมูลในไฟล์สำรองได้จริง) → ทำขั้น ③–⑤ ต่อ</span>
+          <span lang="en">Flash a new card → plug in the old <code>CAFEBACKUP</code> USB → wizard step ② <b>“Restore from old device”</b> → choose the <code>.cwkey</code> file + password →
+          customers, logs and staff accounts all come back (the key is verified against the backup first) → continue with ③–⑤.</span></p></div>
+      </details>
+      <details class="faq">
+        <summary><span lang="th">ไฟ LED กะพริบแบบผิดพลาด</span><span lang="en">LED shows the error pattern</span></summary>
+        <div><p><span lang="th">ตรวจสาย LAN และ DHCP ของเราเตอร์ (ในขั้นนี้ต้องยังเปิดอยู่) หรือการ์ดอาจเสีย</span>
+          <span lang="en">Check the LAN cable and the router's DHCP (it must still be on at this point), or the card may be faulty.</span></p></div>
+      </details>
+      <details class="faq">
+        <summary><span lang="th">ลืม setup code</span><span lang="en">Lost the setup code</span></summary>
+        <div><p><span lang="th">ถอดการ์ดไปใส่คอม แล้วรัน <code>prepare-sd.ps1</code> ใหม่</span><span lang="en">Put the card in a PC and run <code>prepare-sd.ps1</code> again.</span></p></div>
+      </details>
+      <details class="faq">
+        <summary><span lang="th">ตั้งเครือข่ายผิด / เปลี่ยนเราเตอร์ แล้วเข้าไม่ได้</span><span lang="en">Wrong network settings / new router</span></summary>
+        <div><p><span lang="th"><b>Factory reset:</b> ถอดการ์ดเสียบคอม → <code>prepare-sd.ps1 -FactoryReset</code> (ได้ setup code ใหม่) → เปิด DHCP ของเราเตอร์กลับชั่วคราว →
+          เสียบการ์ดกลับแล้วบูต (Pi รีบูตเอง 1 รอบ ~2 นาที) → <code>http://cafewifi.local</code> ใส่ code ใหม่ แล้วตั้งเครือข่ายใหม่ · <b>ข้อมูลลูกค้า, log และบัญชีพนักงานไม่ถูกลบ</b></span>
+          <span lang="en"><b>Factory reset:</b> put the card in a PC → <code>prepare-sd.ps1 -FactoryReset</code> (new setup code) → temporarily re-enable the router's DHCP →
+          boot the Pi (it reboots once, ~2 min) → <code>http://cafewifi.local</code>, enter the new code and redo the network · <b>customers, logs and staff accounts are kept</b>.</span></p></div>
+      </details>
+      <details class="faq">
+        <summary><span lang="th">ตรวจ “DHCP ยังเปิดอยู่” ไม่ผ่าน ทั้งที่ปิดแล้ว</span><span lang="en">“DHCP still on” although it's off</span></summary>
+        <div><p><span lang="th">มีอุปกรณ์อื่นจ่าย DHCP อยู่ เช่น Access Point ที่ตั้งเป็นโหมด router — ปิด DHCP บนอุปกรณ์นั้นด้วย</span>
+          <span lang="en">Another device is serving DHCP, e.g. an access point in router mode — turn DHCP off there too.</span></p></div>
+      </details>
+      <p style="margin-top:18px;color:var(--ink-2)">
+        <span lang="th">คู่มือฉบับเต็มรวมรายละเอียดเบื้องหลังทุกขั้น: <a href="https://github.com/lenulk/Cafe-wifi-Image/blob/main/docs/install-from-image.md">docs/install-from-image.md</a></span>
+        <span lang="en">Full guide with every behind-the-scenes detail (Thai): <a href="https://github.com/lenulk/Cafe-wifi-Image/blob/main/docs/install-from-image.md">docs/install-from-image.md</a></span>
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SECURITY ================= -->
+<section class="block alt" id="security">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="kicker"><span lang="th">ความปลอดภัย</span><span lang="en">Security</span></span>
+      <h2><span lang="th">ข้อมูลลูกค้าต้องปลอดภัย แม้ image เดียวกันใช้หลายร้าน</span><span lang="en">Customer data stays safe, even with one image in many shops</span></h2>
+    </div>
+    <div class="cards">
+      <div class="card"><div class="ico"><svg><use href="#i-key"/></svg></div>
+        <h3><span lang="th">ไม่มีความลับใน image</span><span lang="en">No secrets in the image</span></h3>
+        <p><span lang="th">กุญแจ, pepper, session key, รหัสฐานข้อมูล, ใบรับรอง TLS, SSH host key สร้างใหม่บน Pi แต่ละเครื่องตอนบูตแรก</span>
+          <span lang="en">Keys, pepper, session key, DB password, TLS certificate and SSH host keys are generated on each Pi at first boot.</span></p></div>
+      <div class="card"><div class="ico"><svg><use href="#i-lock"/></svg></div>
+        <h3><span lang="th">เลขบัตรเข้ารหัส</span><span lang="en">Encrypted IDs</span></h3>
+        <p><span lang="th">เลขบัตรประชาชนเก็บแบบ AES-256-GCM + hash แยกไว้ค้นหา · รหัสผ่านพนักงานใช้ argon2id</span>
+          <span lang="en">National IDs stored with AES-256-GCM plus a separate lookup hash · staff passwords use argon2id.</span></p></div>
+      <div class="card"><div class="ico"><svg><use href="#i-shield"/></svg></div>
+        <h3><span lang="th">ไม่มีรหัสผ่านเข้าเครื่อง</span><span lang="en">No password logins</span></h3>
+        <p><span lang="th">ช่างเข้าได้ทาง SSH key เท่านั้น · wizard ต้องมี setup code (ผิด 5 ครั้งล็อก) และปิดตัวเองถาวรเมื่อตั้งเสร็จ</span>
+          <span lang="en">Technicians log in with SSH keys only · the wizard needs the setup code (locks after 5 tries) and closes itself for good.</span></p></div>
+      <div class="card"><div class="ico"><svg><use href="#i-usb"/></svg></div>
+        <h3><span lang="th">สำรองและกู้คืนผ่านเว็บ</span><span lang="en">Backup &amp; web restore</span></h3>
+        <p><span lang="th">ไฟล์ <code>.cwkey</code> ล็อกด้วย scrypt + AES-256-GCM · การ์ดเสียก็ flash ใหม่แล้วกู้คืนจากหน้าเว็บได้ครบ</span>
+          <span lang="en"><code>.cwkey</code> locked with scrypt + AES-256-GCM · if the card dies, flash a new one and restore everything from the web.</span></p></div>
+      <div class="card"><div class="ico"><svg><use href="#i-reset"/></svg></div>
+        <h3>Factory reset</h3>
+        <p><span lang="th">ตั้งเครือข่ายผิดหรือเปลี่ยนเราเตอร์ กลับเข้า wizard ได้โดยไม่ลบข้อมูล</span>
+          <span lang="en">Wrong network or a new router? Back to the wizard without losing data.</span></p></div>
+      <div class="card"><div class="ico"><svg><use href="#i-check"/></svg></div>
+        <h3><span lang="th">ใบรับรองของร้าน</span><span lang="en">Shop certificate</span></h3>
+        <p><span lang="th">ใบรับรองจำกัดให้ใช้ได้เฉพาะชื่อ <code>cafe.wifi</code> และ IP ของ Pi — กุญแจหลุดก็ปลอมเว็บอื่นไม่ได้</span>
+          <span lang="en">Name-constrained to <code>cafe.wifi</code> and the Pi's IP — even a leaked key can't impersonate other sites.</span></p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= TESTED ================= -->
+<section class="block" id="tested">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="kicker"><span lang="th">ผลทดสอบ</span><span lang="en">Tested</span></span>
+      <h2><span lang="th">ทดสอบบน Raspberry Pi 4B จริง</span><span lang="en">Tested on a real Raspberry Pi 4B</span></h2>
+      <p><span lang="th">ทุกตัวเลขวัดจากเครื่องจริง ไม่ใช่ VM</span><span lang="en">Every number is from real hardware, not a VM.</span></p>
+    </div>
+    <div class="tbl">
+      <table>
+        <thead><tr><th><span lang="th">ทดสอบ</span><span lang="en">Test</span></th><th><span lang="th">ผล</span><span lang="en">Result</span></th></tr></thead>
+        <tbody>
+          <tr><td><span lang="th">ไม่มีความลับในไฟล์ image (ตรวจกับไฟล์ .img จริง)</span><span lang="en">No secrets in the image (checked against the real .img)</span></td><td class="res">✓</td></tr>
+          <tr><td><span lang="th">flash image เดิมซ้ำ → ความลับใหม่ทุกตัว</span><span lang="en">Re-flash the same image → every secret is new</span></td><td class="res">✓ 8/8</td></tr>
+          <tr><td><span lang="th">ติดตั้งได้โดยไม่มีอินเทอร์เน็ต · ไฟดับกลางบูตแรกแล้วทำต่อได้</span><span lang="en">Installs offline · resumes after a power cut during first boot</span></td><td class="res">✓</td></tr>
+          <tr><td><span lang="th">setup code ผิด 5 ครั้ง → ล็อก</span><span lang="en">5 wrong setup codes → locked</span></td><td class="res">✓</td></tr>
+          <tr><td><span lang="th">ตรวจเราเตอร์: จับ DHCP และ IPv6 RA ที่ยังเปิดได้ทั้งคู่</span><span lang="en">Router check catches both live DHCP and IPv6 RA</span></td><td class="res">✓</td></tr>
+          <tr><td><span lang="th">ทั้งระบบ: ลงทะเบียน → อนุมัติ → ออกเน็ต → ต่อเวลา → ปิดสิทธิ์ → log → ส่งออกหลักฐาน</span><span lang="en">End to end: register → approve → online → extend → revoke → log → export</span></td><td class="res">✓ 49/49</td></tr>
+          <tr><td><span lang="th">ปิดสิทธิ์ลูกค้า → เน็ตถูกตัด</span><span lang="en">Revoke a customer → internet cut</span></td><td class="res">✓ ~7–8 s</td></tr>
+          <tr><td><span lang="th">การ์ดเสีย → flash ใหม่ → กู้คืนผ่านหน้าเว็บ → ข้อมูลกลับมาครบ</span><span lang="en">Card lost → re-flash → web restore → all data back</span></td><td class="res">✓</td></tr>
+          <tr><td><span lang="th">factory reset → กลับเข้า wizard โดยข้อมูลไม่หาย</span><span lang="en">Factory reset → back to wizard, data kept</span></td><td class="res">✓ ~85 s</td></tr>
+          <tr><td><span lang="th">Android ที่ยังไม่อนุมัติ + ติดตั้งใบรับรองร้าน → เปิดหน้าแอดมินได้ไม่มีหน้าเตือน</span><span lang="en">Unapproved Android + shop certificate → admin opens with no warning</span></td><td class="res">✓</td></tr>
+          <tr><td><span lang="th">เวลาติดตั้ง ตั้งแต่เสียบไฟจนใช้งานได้</span><span lang="en">Install time, power-on to ready</span></td><td class="res">~6 min</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="cards" style="margin-top:28px">
+      <div class="card">
+        <h3><span lang="th">ข้อจำกัดที่รู้แล้ว</span><span lang="en">Known limitations</span></h3>
+        <p><span lang="th">ต้องใช้เราเตอร์ที่ปิด DHCP และ IPv6 ฝั่ง LAN ได้ (ระบบตรวจให้ก่อนเปิดใช้) · ใบรับรองหน้าแอดมินเป็นของร้านเอง ไม่ใช่ CA สาธารณะ
+          เครื่องพนักงานต้องติดตั้งใบรับรองครั้งเดียว (ทดสอบแล้วบน Android 10)</span>
+          <span lang="en">The router must be able to turn off LAN DHCP and IPv6 (checked before go-live) · the admin certificate is the shop's own, not a public CA,
+          so each staff device installs it once (tested on Android 10).</span></p>
+      </div>
+      <div class="card">
+        <h3><span lang="th">ซอร์สโค้ดเปิดทั้งหมด</span><span lang="en">Fully open source</span></h3>
+        <p><span lang="th">หน้าลงทะเบียน/แอดมิน, ฐานข้อมูล, ตัวติดตั้ง, งานตามรอบ และขั้นตอนบูตครั้งแรกอยู่ใน
+          <a href="https://github.com/lenulk/Cafe-wifi-Image">repo นี้</a> · captive portal ใช้ <a href="https://github.com/openNDS/openNDS">openNDS</a> v10.1.3 (GPL-2.0) ไม่ได้แก้ไข</span>
+          <span lang="en">Portal and admin, database, installer, scheduled jobs and first-boot logic are all in
+          <a href="https://github.com/lenulk/Cafe-wifi-Image">the repo</a> · the captive portal is unmodified <a href="https://github.com/openNDS/openNDS">openNDS</a> v10.1.3 (GPL-2.0).</span></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= DOWNLOAD ================= -->
+<section class="block" id="download" style="padding-top:0">
+  <div class="wrap">
+    <div class="download">
+      <div>
+        <h2><span lang="th">พร้อมเปิด Wi-Fi ให้ลูกค้าแล้วหรือยัง?</span><span lang="en">Ready to open your Wi-Fi?</span></h2>
+        <p><span lang="th">ดาวน์โหลด image ไปเขียนลง SD card ด้วย Raspberry Pi Imager แล้วทำตาม<a href="#install" style="color:#e3a35f">คู่มือติดตั้ง</a></span>
+          <span lang="en">Download the image, write it with Raspberry Pi Imager, then follow the <a href="#install" style="color:#e3a35f">install guide</a>.</span></p>
+        <div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:22px">
+          <a class="btn btn-primary js-dl" href="https://github.com/lenulk/Cafe-wifi-Image/releases/latest">
+            <svg><use href="#i-download"/></svg>
+            <span><span lang="th">ดาวน์โหลดรุ่น</span><span lang="en">Download v</span> <span class="js-ver">1.1.0</span> <small class="js-size"></small></span>
+          </a>
+          <a class="btn btn-ghost" href="https://github.com/lenulk/Cafe-wifi-Image/releases"><span lang="th">รุ่นทั้งหมด</span><span lang="en">All releases</span></a>
+        </div>
+      </div>
+      <dl>
+        <div><dt><span lang="th">ฮาร์ดแวร์</span><span lang="en">Hardware</span></dt>
+          <dd><span lang="th">Raspberry Pi 4B · SD ≥ 8 GB · สาย LAN 1 เส้น · (แนะนำ) USB สำรองข้อมูล</span><span lang="en">Raspberry Pi 4B · SD ≥ 8 GB · one LAN cable · (recommended) backup USB</span></dd></div>
+        <div><dt><span lang="th">ระบบฐาน</span><span lang="en">Base OS</span></dt>
+          <dd>Raspberry Pi OS Lite 64-bit (Debian 13 trixie)</dd></div>
+        <div><dt><span lang="th">ไฟล์</span><span lang="en">File</span></dt>
+          <dd><code class="js-file">cafe-wifi-1.1.0-….img.xz</code> <span lang="th">+ SHA-256</span><span lang="en">+ SHA-256</span></dd></div>
+        <div><dt><span lang="th">คอมเตรียมการ์ด</span><span lang="en">Card prep PC</span></dt>
+          <dd>Windows + <a href="https://www.raspberrypi.com/software/" style="color:#e3a35f">Raspberry Pi Imager</a></dd></div>
+      </dl>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div>
+      <b style="color:var(--ink)">Cafe-WiFi OS</b> ·
+      <span lang="th">เผยแพร่ภายใต้ <a href="https://github.com/lenulk/Cafe-wifi-Image/blob/main/LICENSE">MIT License</a> · ซอฟต์แวร์อื่นใน image เป็นไปตาม license ของแต่ละโครงการ</span>
+      <span lang="en">Released under the <a href="https://github.com/lenulk/Cafe-wifi-Image/blob/main/LICENSE">MIT License</a> · other software in the image follows its own license</span>
+    </div>
+    <nav>
+      <a href="https://github.com/lenulk/Cafe-wifi-Image">GitHub</a>
+      <a href="https://github.com/lenulk/Cafe-wifi-Image/blob/main/docs/install-from-image.md"><span lang="th">คู่มือเต็ม</span><span lang="en">Full guide</span></a>
+      <a href="https://github.com/lenulk/Cafe-wifi-Image/blob/main/docs/privacy-policy-th.md"><span lang="th">นโยบายความเป็นส่วนตัว (ติดหน้าร้าน)</span><span lang="en">Privacy policy template (TH)</span></a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  var titles = {
+    th: 'Cafe-WiFi OS — Wi-Fi ร้านกาแฟที่เก็บ log ถูกกฎหมาย',
+    en: 'Cafe-WiFi OS — Café Wi-Fi that keeps logs by the law'
+  };
+  function setLang(l) {
+    root.setAttribute('data-lang', l);
+    root.lang = l;
+    document.title = titles[l];
+    document.querySelectorAll('[data-set-lang]').forEach(function (b) {
+      b.setAttribute('aria-pressed', String(b.getAttribute('data-set-lang') === l));
+    });
+  }
+  document.querySelectorAll('[data-set-lang]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var l = b.getAttribute('data-set-lang');
+      setLang(l);
+      try { localStorage.setItem('cw-lang', l); } catch (e) {}
+    });
+  });
+  setLang(root.getAttribute('data-lang') || 'th');
+
+  // เมนูมือถือ (จอ < 1000px): ปุ่ม ☰ เปิด/ปิด -- ปิดเองเมื่อเลือกลิงก์, กดนอกเมนู หรือกด Esc
+  var nav = document.querySelector('.nav'), menuBtn = document.querySelector('.menu-btn');
+  function setMenu(open) {
+    nav.classList.toggle('open', open);
+    menuBtn.setAttribute('aria-expanded', String(open));
+  }
+  menuBtn.addEventListener('click', function () { setMenu(!nav.classList.contains('open')); });
+  document.querySelectorAll('.nav-links a').forEach(function (a) { a.addEventListener('click', function () { setMenu(false); }); });
+  document.addEventListener('click', function (e) { if (!nav.contains(e.target)) setMenu(false); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') setMenu(false); });
+
+  // รุ่นล่าสุดจาก GitHub Releases -- ล้มเหลวก็ใช้ค่าที่เขียนไว้ในหน้า (ลิงก์ releases/latest)
+  fetch('https://api.github.com/repos/lenulk/Cafe-wifi-Image/releases/latest')
+    .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+    .then(function (rel) {
+      var ver = String(rel.tag_name || '').replace(/^v/, '');
+      var img = (rel.assets || []).filter(function (a) { return /\.img\.xz$/.test(a.name); })[0];
+      if (ver) document.querySelectorAll('.js-ver').forEach(function (e) { e.textContent = ver; });
+      if (img) {
+        document.querySelectorAll('.js-dl').forEach(function (a) { a.href = img.browser_download_url; });
+        document.querySelectorAll('.js-file').forEach(function (e) { e.textContent = img.name; });
+        document.querySelectorAll('.js-size').forEach(function (e) { e.textContent = '· ' + Math.round(img.size / 1048576) + ' MB'; });
+      }
+    })
+    .catch(function () {});
+})();
+</script>
+</body>
+</html>
