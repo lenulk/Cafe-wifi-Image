@@ -8,10 +8,14 @@ tools/restore_keys.py — กู้กุญแจเข้ารหัส (secr
 
 ขั้นตอน (docs/install-from-image.md ขั้น "การ์ดเสีย"):
   1. ติดตั้งเครื่องใหม่ตามปกติ (image + wizard) -> เครื่องใหม่มีกุญแจชุดใหม่ของตัวเอง
-  2. รันคำสั่งนี้ -> secrets.env เดิมถูกเก็บเป็น secrets.env.before-restore-<เวลา> แล้วแทนด้วยของในไฟล์สำรอง
-     **ยกเว้นค่าเครือข่าย/พอร์ตของเครื่องใหม่** (UPLINK_*, GATEWAY_*, CLIENT_CIDR, SSH_ALT_PORT) ที่คงไว้
-  3. ตั้งรหัสผู้ใช้ MariaDB ให้ตรง DB_PASS ที่กู้มาให้อัตโนมัติ (--no-db = ข้าม)
-  4. คืนค่า DB จาก USB แล้วรีสตาร์ท service (คำสั่งพิมพ์ให้ท้ายสุด)
+  2. รันคำสั่งนี้ -> secrets.env เดิมถูกเก็บเป็น secrets.env.before-restore-<เวลา> แล้ว**แทนเฉพาะกุญแจของข้อมูล**
+     (NATID_DEK ถอดเลขบัตร, NATID_PEPPER hash ค้นหา) ด้วยของในไฟล์สำรอง -- ค่าอื่นเป็นของเครื่องใหม่ทั้งหมด
+  3. คืนค่า DB จาก USB แล้วรีสตาร์ท service (คำสั่งพิมพ์ให้ท้ายสุด)
+
+เดิม (1.0.1) กู้ทุกค่ายกเว้นค่าเครือข่าย -> FAS_KEY ของเครื่องเก่าไม่ตรงกับที่ openNDS ของเครื่องใหม่ใช้
+-> หน้าลงทะเบียนขึ้น "หน้านี้หมดอายุแล้ว" ทุกเครื่อง (เจอบน Pi จริง 2026-10-05) · ความลับอื่น (FAS_KEY, SECRET_KEY,
+DB_PASS) ถูกฝังใน config ของ service อื่นตอนติดตั้ง และไม่มีข้อมูลที่เก็บไว้ตัวไหนต้องใช้ -> ไม่กู้
+(dump จาก USB เป็นของฐาน cafewifi อย่างเดียว ไม่มีบัญชีผู้ใช้ MariaDB -> DB_PASS ของเครื่องใหม่ยังใช้ได้)
 """
 from __future__ import annotations
 
@@ -28,25 +32,27 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "app"))  # รั�
 from common import keybackup  # noqa: E402
 
 ETC_DIR = Path(os.environ.get("ETC_DIR", "/etc/cafe-wifi"))
-# ค่าที่ผูกกับเครื่อง/เครือข่ายปัจจุบัน -- ต้องเป็นของเครื่องใหม่ ไม่ใช่ของร้านเดิมเมื่อหลายเดือนก่อน
-KEEP_LOCAL = ("UPLINK_IP", "UPLINK_GW", "UPLINK_NETWORK", "GATEWAY_IP", "GATEWAY_NAME", "CLIENT_CIDR",
-              "SSH_ALT_PORT", "OFFSITE_BACKUP_DIR")
+# กุญแจที่ข้อมูลในฐานข้อมูลต้องใช้ -- กู้เฉพาะสองตัวนี้ (allowlist) ที่เหลือเป็นของเครื่องปัจจุบัน
+RESTORE = ("NATID_DEK", "NATID_PEPPER")
 
 
 def merge(restored: str, current: str | None) -> str:
-    """ใช้ของในไฟล์สำรองเป็นหลัก แต่คงค่าเครือข่ายของเครื่องปัจจุบัน"""
+    """secrets.env ของเครื่องปัจจุบัน แทนเฉพาะค่าใน RESTORE ด้วยของในไฟล์สำรอง"""
     if not current:
         return restored
-    local = {k: v for k, v in keybackup.parse_env(current).items() if k in KEEP_LOCAL}
+    old = {k: v for k, v in keybackup.parse_env(restored).items() if k in RESTORE}
+    missing = [k for k in RESTORE if k not in old]
+    if missing:
+        raise keybackup.BackupError(f"ไฟล์สำรองไม่มี {', '.join(missing)}")
     out, seen = [], set()
-    for line in restored.splitlines():
+    for line in current.splitlines():
         key = line.split("=", 1)[0].strip() if "=" in line and not line.lstrip().startswith("#") else None
-        if key in local:
-            out.append(f"{key}={local[key]}")
+        if key in old:
+            out.append(f"{key}={old[key]}")
             seen.add(key)
         else:
             out.append(line)
-    out += [f"{k}={v}" for k, v in local.items() if k not in seen]
+    out += [f"{k}={v}" for k, v in old.items() if k not in seen]
     return "\n".join(out) + "\n"
 
 
@@ -54,7 +60,6 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="กู้ secrets.env จากไฟล์สำรองกุญแจ (.cwkey)")
     ap.add_argument("file")
     ap.add_argument("--check", action="store_true", help="ตรวจไฟล์+รหัสผ่านเท่านั้น ไม่เขียน")
-    ap.add_argument("--no-db", action="store_true", help="ไม่ตั้งรหัสผู้ใช้ MariaDB ให้ตรง DB_PASS ที่กู้มา")
     a = ap.parse_args(argv)
 
     blob = Path(a.file).read_bytes()
@@ -83,7 +88,11 @@ def main(argv: list[str] | None = None) -> int:
     if current and keybackup.dek_fingerprint(current) == head.get("dek_fp"):
         print("เครื่องนี้ใช้กุญแจชุดเดียวกับไฟล์สำรองอยู่แล้ว -- ไม่ต้องกู้")
         return 0
-    new = merge(text, current)
+    try:
+        new = merge(text, current)
+    except keybackup.BackupError as e:
+        print(f"ผิดพลาด: {e}", file=sys.stderr)
+        return 2
     if current is not None:
         keep = target.with_name(f"secrets.env.before-restore-{time.strftime('%Y%m%d-%H%M%S')}")
         shutil.copy2(target, keep)
@@ -102,20 +111,7 @@ def main(argv: list[str] | None = None) -> int:
     os.replace(tmp, target)
     print(f"✓ กู้ {target} แล้ว (ลายนิ้วมือ {keybackup.dek_fingerprint(new)})")
 
-    # แอปต่อ DB ด้วย DB_PASS ที่เพิ่งกู้มา -- ตั้งรหัสผู้ใช้ MariaDB ให้ตรง (root ต่อผ่าน unix socket)
-    # ไม่ใช้ install.sh --stage firstboot: มันเขียนค่าเครือข่ายค่าปริยายทับใน secrets.env
-    env = keybackup.parse_env(new)
-    user, pw_db, dbname = env.get("DB_USER", "cafewifi"), env.get("DB_PASS", ""), env.get("DB_NAME", "cafewifi")
-    if a.no_db:
-        print("ข้ามการตั้งรหัส MariaDB (--no-db)")
-    elif not (pw_db.isalnum() and user.replace("_", "").isalnum()) or not shutil.which("mysql"):
-        print("ตั้งรหัส MariaDB เองให้ตรง DB_PASS ใน secrets.env (ALTER USER ...)", file=sys.stderr)
-    else:
-        import subprocess
-        sql = "".join(f"ALTER USER '{user}'@'{h}' IDENTIFIED BY '{pw_db}';" for h in ("127.0.0.1", "localhost"))
-        r = subprocess.run(["mysql", "-e", sql + "FLUSH PRIVILEGES;"], capture_output=True, text=True)
-        print("✓ ตั้งรหัส MariaDB ให้ตรงกุญแจที่กู้แล้ว" if r.returncode == 0
-              else f"ตั้งรหัส MariaDB ไม่สำเร็จ: {r.stderr.strip()[:200]}")
+    dbname = keybackup.parse_env(new).get("DB_NAME", "cafewifi")
     print(f"ขั้นต่อไป: คืนค่า DB {dbname} จาก USB (ถ้ามี) แล้ว\n"
           "  sudo systemctl restart cafe-admin cafe-fas cafe-logger")
     return 0

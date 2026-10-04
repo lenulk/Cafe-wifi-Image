@@ -1,0 +1,32 @@
+{% extends "setup_base.html" %}
+{% block head %}{% if busy %}<meta http-equiv="refresh" content="3">{% endif %}{% endblock %}
+{% block body %}
+<div class="card">
+  <h1>กู้คืนจากเครื่องเดิม</h1>
+  {% if busy %}
+    <div class="warn">⏳ {{ st.message or 'กำลังเริ่มกู้คืน' }} — <b>ห้ามถอดไฟหรือถอด USB</b> (หน้านี้อัปเดตเอง)</div>
+  {% elif st.state == 'done' %}
+    <div class="ok">✅ {{ st.message }} — บัญชีพนักงาน {{ st.staff }} บัญชีกลับมาแล้ว
+      (ตรวจถอดเลขบัตรลูกค้าได้ครบ {{ st.customers_checked }} รายการ)</div>
+    <p class="hint">เข้าหน้าแอดมินด้วยบัญชีเดิมของร้านได้หลังบันทึกขั้นสุดท้าย</p>
+    <form method="get" action="{{ url_for('network') }}"><button type="submit">ต่อไป: ตั้งค่าเครือข่าย</button></form>
+  {% else %}
+    {% if st.state == 'failed' %}<div class="err">กู้คืนไม่สำเร็จ: {{ st.message }}</div>{% endif %}
+    {% for e in errors or [] %}<div class="err">{{ e }}</div>{% endfor %}
+    <p>ใช้เมื่อ<b>การ์ดของเครื่องเดิมเสีย</b>แล้ว flash การ์ดใหม่ — ข้อมูลลูกค้า, log และบัญชีพนักงานจะกลับมาครบ</p>
+    <ol class="hint">
+      <li>เสียบ <b>USB CAFEBACKUP</b> ที่เคยเสียบกับเครื่องเดิมเข้า Pi (ระบบใช้ไฟล์สำรองล่าสุดในนั้น)</li>
+      <li>เลือก<b>ไฟล์สำรองกุญแจ (.cwkey)</b> ที่ดาวน์โหลดจากเมนู "สำรองกุญแจ" ของเครื่องเดิม และใส่รหัสผ่านของไฟล์</li>
+    </ol>
+    <form method="post" enctype="multipart/form-data">
+      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+      <label for="cwkey">ไฟล์สำรองกุญแจ (.cwkey)</label>
+      <input id="cwkey" name="cwkey" type="file" accept=".cwkey" required>
+      <label for="passphrase">รหัสผ่านของไฟล์สำรอง</label>
+      <input id="passphrase" name="passphrase" type="password" autocomplete="off" required>
+      <button type="submit">กู้คืน</button>
+    </form>
+    <form method="get" action="{{ url_for('admin') }}"><button type="submit" class="secondary">ไม่กู้ — ติดตั้งใหม่</button></form>
+  {% endif %}
+</div>
+{% endblock %}

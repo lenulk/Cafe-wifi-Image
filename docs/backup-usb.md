@@ -26,11 +26,14 @@
 ไฟล์สำรองบน USB มีแค่ฐานข้อมูล — เลขบัตรในนั้นเข้ารหัสอยู่ ต้องใช้**ไฟล์สำรองกุญแจ `.cwkey`**
 (หน้าแอดมิน → เมนู "สำรองกุญแจ") ถอด · **ห้ามเก็บไฟล์ `.cwkey` ไว้ใน USB อันเดียวกับไฟล์สำรอง**
 
-1. flash การ์ดใหม่จาก image แล้วติดตั้งผ่าน wizard ตามปกติ ([`install-from-image.md`](install-from-image.md))
-2. คัดลอกไฟล์ `.cwkey` ขึ้น Pi แล้วคืนกุญแจ (ถามรหัสผ่านของไฟล์):
-   `sudo /opt/cafe-wifi/venv/bin/python -m tools.restore_keys <ไฟล์.cwkey>`
-3. เสียบ USB แล้วคืนฐานข้อมูล: `gunzip -c /mnt/cafebackup/cafe-wifi/cafewifi-<วันล่าสุด>.sql.gz | sudo mysql cafewifi`
-4. `sudo systemctl restart cafe-admin cafe-fas cafe-logger`
+1. flash การ์ดใหม่จาก image เสียบ USB `CAFEBACKUP` ของเครื่องเดิม แล้วบูต
+2. เปิด `http://cafewifi.local` → ใส่ setup code → ขั้น ② กด **"กู้คืนจากเครื่องเดิม"**
+3. เลือกไฟล์ `.cwkey` แล้วใส่รหัสผ่านของไฟล์ → ระบบคืนฐานข้อมูลจากไฟล์สำรองล่าสุดใน USB, ตรวจว่ากุญแจถอดเลขบัตรได้จริง
+   แล้วใช้กุญแจนั้น (กุญแจไม่ตรงกับ USB = ไม่ใช้และแจ้งให้รู้ ไม่มีอะไรเสีย)
+4. ทำ wizard ขั้น ③–⑤ ต่อตามปกติ · เข้าหน้าแอดมินด้วยบัญชีเดิมของร้าน
+
+(ทาง command line ยังใช้ได้: `sudo /opt/cafe-wifi/venv/bin/python -m tools.restore_keys <ไฟล์.cwkey>` แล้ว
+`gunzip -c /mnt/cafebackup/cafe-wifi/cafewifi-<ล่าสุด>.sql.gz | sudo mysql cafewifi`)
 
 ทดสอบขั้นตอนนี้แล้วบน Pi จริง (4 ต.ค. 2026): ล้างการ์ด → flash ใหม่ → คืนกุญแจ + ฐานข้อมูล → ถอดเลขบัตรลูกค้าเดิมได้ครบ
 

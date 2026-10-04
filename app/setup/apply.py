@@ -32,7 +32,7 @@ STATUS_FILE = STATE_DIR / "status.json"
 LOG_FILE = STATE_DIR / "apply.log"
 SITE_DONE = ETC_DIR / ".site-done"
 CODE_FILE = ETC_DIR / "setup-code"
-WIZARD_UNITS = ["cafe-wifi-setup.service", "cafe-wifi-apply.path"]
+WIZARD_UNITS = ["cafe-wifi-setup.service", "cafe-wifi-apply.path", "cafe-wifi-restore.path"]
 LED_DIR = Path("/sys/class/leds/ACT")
 
 

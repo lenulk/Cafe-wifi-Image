@@ -24,7 +24,7 @@ from pathlib import Path
 
 from flask import Flask, abort, redirect, render_template, request, session, url_for
 
-from common import audit, crypto
+from common import audit, crypto, keybackup
 from common.db import get_conn, query_one
 from setup import netinfo
 
@@ -34,10 +34,13 @@ CODE_FILE = ETC_DIR / "setup-code"
 SITE_DONE = ETC_DIR / ".site-done"
 REQUEST_FILE = RUN_DIR / "apply.json"
 STATUS_FILE = Path(os.environ.get("APPLY_STATE_DIR", "/run/cafe-wifi-apply")) / "status.json"  # เขียนโดย apply.py (root)
+RESTORE_REQUEST = RUN_DIR / "restore.json"                 # -> cafe-wifi-restore.path ปลุก setup/restore.py (root)
+RESTORE_STATUS = STATUS_FILE.with_name("restore.json")     # เขียนโดย restore.py
 ROUTER_CHECK_TTL = 300          # ผลตรวจเราเตอร์ใช้ได้ 5 นาที (apply.py ตรวจซ้ำเองอีกรอบอยู่ดี)
 
 MAX_FAILS = 5
 LOCK_SEC = 15 * 60
+RESTORE_MAX_FAILS = 10            # รหัสผ่านไฟล์สำรองผิด -- scrypt ช้าอยู่แล้ว แต่กันลองทางหน้าเว็บไม่จำกัด
 
 app = Flask(__name__)
 app.config.update(
@@ -51,6 +54,7 @@ app.config.update(
 
 _lock = threading.Lock()
 _fails: list[float] = []
+_restore_fails: list[float] = []
 
 
 # ------------------------------------------------------------------ helpers
@@ -78,9 +82,9 @@ def staff_count() -> int:
     return int(row["n"]) if row else 0
 
 
-def read_status() -> dict:
+def read_status(path: Path | None = None) -> dict:
     try:
-        return json.loads(STATUS_FILE.read_text(encoding="utf-8"))
+        return json.loads((path or STATUS_FILE).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
 
@@ -133,6 +137,8 @@ def index():
     st = read_status()
     if st.get("state") == "failed":
         return redirect(url_for("router"))
+    if read_status(RESTORE_STATUS).get("state") == "running" or RESTORE_REQUEST.exists():
+        return redirect(url_for("restore"))
     if staff_count() == 0:
         return redirect(url_for("admin"))
     if "net" not in session:
@@ -198,13 +204,54 @@ def admin():
     return redirect(url_for("network"))
 
 
+@app.route("/restore", methods=["GET", "POST"])
+def restore():
+    """การ์ดเสีย -> flash ใหม่ -> กู้จากไฟล์สำรองกุญแจ (.cwkey) + ไฟล์สำรองฐานข้อมูลใน USB โดยไม่ต้องใช้ CLI
+
+    ถอดไฟล์ที่นี่ (รหัสผ่านไม่ออกจากหน่วยความจำของโปรเซสนี้) แล้วส่งเฉพาะกุญแจของข้อมูลให้ฝั่ง root
+    ใช้ได้เฉพาะเครื่องที่ยังไม่มีพนักงาน -- ฝั่ง root ตรวจซ้ำเองอีกชั้น
+    """
+    st = read_status(RESTORE_STATUS)
+    busy = st.get("state") == "running" or RESTORE_REQUEST.exists()
+    if request.method == "GET":
+        if not busy and st.get("state") != "done" and staff_count() > 0:
+            return redirect(url_for("network"))
+        return render_template("setup_restore.html", step=2, st=st, busy=busy)
+    if busy or staff_count() > 0:
+        return redirect(url_for("restore"))
+    now = time.time()
+    with _lock:
+        _restore_fails[:] = [t for t in _restore_fails if now - t < LOCK_SEC]
+        if len(_restore_fails) >= RESTORE_MAX_FAILS:
+            return render_template("setup_restore.html", step=2, st={}, busy=False,
+                                   errors=["ใส่รหัสผ่านผิดหลายครั้ง ล็อกไว้ 15 นาที"]), 429
+    f = request.files.get("cwkey")
+    blob = f.read(64 * 1024) if f else b""
+    try:
+        env = keybackup.parse_env(keybackup.unpack(blob, request.form.get("passphrase") or ""))
+    except keybackup.BackupError as e:
+        with _lock:
+            _restore_fails.append(now)
+        return render_template("setup_restore.html", step=2, st={}, busy=False, errors=[str(e)]), 400
+    keys = {k: env.get(k, "") for k in ("NATID_DEK", "NATID_PEPPER")}
+    tmp = RESTORE_REQUEST.with_suffix(".tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as out:
+        json.dump(keys, out)
+    os.replace(tmp, RESTORE_REQUEST)          # path unit เห็นไฟล์ครบทั้งก้อนเท่านั้น
+    # audit เขียนโดย restore.py หลังคืนฐานข้อมูล -- เขียนตรงนี้จะถูกฐานจากไฟล์สำรองทับหาย
+    return redirect(url_for("restore"))
+
+
 @app.route("/network", methods=["GET", "POST"])
 def network():
     uplink = netinfo.current_uplink()
     if request.method == "GET":
         # ชื่อร้านที่ช่างใส่ใน cafewifi.conf -> firstboot เขียนลง secrets.env -> มาถึงที่นี่ทาง EnvironmentFile
         # เดิมช่องว่างเปล่าให้พิมพ์ซ้ำ ถ้าลืม portal จะขึ้น Cafe-Guest แทนชื่อร้าน
-        vals = session.get("net") or {**netinfo.suggest(uplink), "retention_days": 180,
+        # factory reset: ค่าเดิมของร้าน (อายุ log) อยู่ใน secrets.env -- ไม่ใช้ค่าปริยายทับจนร้านเก็บ log สั้นลงโดยไม่รู้ตัว
+        vals = session.get("net") or {**netinfo.suggest(uplink),
+                                      "retention_days": os.environ.get("LOG_RETENTION_DAYS") or 180,
                                       "gateway_name": os.environ.get("GATEWAY_NAME", "")}
         return render_template("setup_network.html", step=3, v=vals, uplink=uplink)
     vals, errors = netinfo.validate(request.form.to_dict())

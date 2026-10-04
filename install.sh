@@ -34,6 +34,7 @@ readonly OPT_DIR="/opt/${APP_NAME}"
 readonly LOG_DIR="/var/log/${APP_NAME}"
 readonly BACKUP_USB_LABEL="CAFEBACKUP"            # ตั้งชื่อ USB นี้แล้วเสียบ = สำรองออกนอก SD อัตโนมัติ
 readonly BACKUP_USB_MNT="/mnt/cafebackup"
+readonly CA_PUBLIC_DIR="/var/lib/${APP_NAME}-ca"   # ใบรับรอง (สาธารณะ) ของหน้าแอดมินให้เครื่องพนักงานดาวน์โหลด
 readonly BACKUP_DIR="/var/backups/${APP_NAME}"  # แก้บั๊ก H4 (เดิมไม่มี backup DB เลยในระบบ)
 # macvlan ฝั่งลูกค้า ซ้อนบน $NIC -- ดูเหตุผลเต็มๆ ที่ configure_network() (R11/§3.1.6 Plan B
 # ที่พิสูจน์แล้วจาก VM lab ว่าเป็นทางเดียวที่ openNDS ยอมทำงานบนโหมดสายเดียว)
@@ -2072,6 +2073,8 @@ Description=Check pending Cafe WiFi sessions every 5 seconds
 [Timer]
 OnBootSec=5sec
 OnUnitInactiveSec=5sec
+# ค่าปริยาย AccuracySec=1min ให้ systemd เลื่อนรอบได้ถึง 1 นาที -> วัดจริงห่าง 8-25 วิ ปิดสิทธิ์ช้า ~26 วิ (2026-10-05)
+AccuracySec=1s
 
 [Install]
 WantedBy=timers.target
@@ -2138,8 +2141,10 @@ make_tls_cert() {
     local keyok=0
     if [[ "$(openssl x509 -in "${cert}/server.crt" -noout -pubkey 2>/dev/null)" == \
           "$(openssl pkey -in "${cert}/server.key" -pubout 2>/dev/null)" ]] && [[ -s "${cert}/server.key" ]]; then keyok=1; fi
-    if (( ! keyok )) || [[ "$san" != *"admin.cafe.wifi"* || "$san" != *"IP Address:${lan_ip}"* ]]; then
-      info "ใบรับรองเดิมไม่มีชื่อ admin.cafe.wifi หรือ IP ${lan_ip} — ออกใหม่ (เบราว์เซอร์จะเตือนใบรับรองใหม่อีกครั้งหนึ่ง)"
+    # ใบที่ไม่จำกัดชื่อ (ก่อน 1.1.0) ห้ามให้พนักงานติดตั้งเป็น CA -- กุญแจหลุด = ปลอมเว็บไหนก็ได้ -> ออกใหม่
+    local nc; nc="$(openssl x509 -in "${cert}/server.crt" -noout -ext nameConstraints 2>/dev/null || true)"
+    if (( ! keyok )) || [[ "$san" != *"admin.cafe.wifi"* || "$san" != *"IP Address:${lan_ip}"* || "$nc" != *"DNS:cafe.wifi"* ]]; then
+      info "ใบรับรองเดิมไม่มีชื่อ admin.cafe.wifi / IP ${lan_ip} / ข้อจำกัดชื่อ — ออกใหม่ (เครื่องพนักงานต้องติดตั้งใบรับรองใหม่)"
       mv -f "${cert}/server.crt" "${cert}/server.crt.old"; mv -f "${cert}/server.key" "${cert}/server.key.old" 2>/dev/null || true
     fi
   fi
@@ -2147,10 +2152,18 @@ make_tls_cert() {
     openssl req -x509 -nodes -newkey rsa:2048 -days 825 \
       -keyout "${cert}/server.key" -out "${cert}/server.crt" \
       -subj "/C=TH/O=Cafe WiFi Gateway/CN=admin.cafe.wifi" \
-      -addext "subjectAltName=DNS:admin.cafe.wifi,DNS:cafe.wifi,DNS:localhost,IP:${lan_ip}" >/dev/null 2>&1
+      -addext "subjectAltName=DNS:admin.cafe.wifi,DNS:cafe.wifi,DNS:localhost,IP:${lan_ip}"       -addext "basicConstraints=critical,CA:TRUE,pathlen:0"       -addext "keyUsage=critical,digitalSignature,keyEncipherment,keyCertSign"       -addext "nameConstraints=critical,permitted;DNS:cafe.wifi,permitted;DNS:localhost,permitted;IP:${lan_ip}/255.255.255.255"       >/dev/null 2>&1
     chmod 0640 "${cert}/server.key"; chown root:"$APP_USER" "${cert}/server.key"
     sync
     ok "สร้าง self-signed certificate (825 วัน)"
+  fi
+  # พนักงานติดตั้งใบนี้เป็น CA บนมือถือครั้งเดียว -> เปิด https://admin.cafe.wifi ได้แม้เครื่องยังไม่ได้อนุมัติ
+  # (Chrome Android ติด captive portal ไม่มีปุ่มข้ามหน้าเตือน -- ทดสอบบนมือถือจริง 2026-10-05) · nameConstraints
+  # ข้างบนจำกัดให้ใช้ได้เฉพาะ cafe.wifi/IP ของ Pi: กุญแจหลุดก็ปลอมเว็บอื่นให้มือถือพนักงานเชื่อไม่ได้
+  # ดาวน์โหลดได้ที่ http://<GATEWAY_IP>:${FAS_PORT}/${APP_NAME}.crt (nginx) -- ไฟล์สาธารณะ ไม่มีกุญแจ
+  if [[ -f "${cert}/server.crt" ]] && (( ! DRY_RUN )); then
+    mkdir -p "$CA_PUBLIC_DIR"; chmod 0755 "$CA_PUBLIC_DIR"
+    cp -f "${cert}/server.crt" "${CA_PUBLIC_DIR}/${APP_NAME}.crt"; chmod 0644 "${CA_PUBLIC_DIR}/${APP_NAME}.crt"
   fi
 }
 
@@ -2166,6 +2179,12 @@ server {
     listen 80 default_server;
     server_name cafe.wifi _;
     access_log ${LOG_DIR}/portal-access.log;
+
+    # ใบรับรองของหน้าแอดมินให้เครื่องพนักงานติดตั้ง (make_tls_cert) -- พอร์ต FAS เปิดให้เครื่องที่ยังไม่อนุมัติอยู่แล้ว
+    location = /${APP_NAME}.crt {
+        alias ${CA_PUBLIC_DIR}/${APP_NAME}.crt;
+        default_type application/x-x509-ca-cert;
+    }
 
     location / {
         proxy_pass http://127.0.0.1:${FAS_BACKEND};

@@ -12,6 +12,10 @@
 #  รันซ้ำได้ทุกขั้น (ไฟดับกลางทางแล้วบูตใหม่ = ทำต่อจากเดิม ไม่สร้างกุญแจทับ):
 #  install.sh ใช้ secrets.env เดิมถ้ามี และเขียนแบบ atomic · ธงปักเป็นขั้นสุดท้ายหลัง sync เท่านั้น
 #
+#  --factory-reset (cafe-wifi-factory-reset.service เมื่อมีไฟล์ factory-reset บน bootfs):
+#    กลับเข้าโหมดตั้งค่าโดย**ไม่ลบข้อมูล** (ลูกค้า, log ตาม ม.26, กุญแจ, บัญชีพนักงาน) -- ปิด service ของร้าน,
+#    คืน eth0 ให้ NetworkManager (DHCP), setup code ใหม่, เปิด wizard แล้วรีบูต · ดู factory_reset()
+#
 #  ตัวแปร CAFEWIFI_* ไว้ทดสอบนอก Pi เท่านั้น (ดู image/firstboot/test_firstboot.sh)
 # ============================================================================
 set -euo pipefail
@@ -28,6 +32,13 @@ CONF_NAME="cafewifi.conf"
 # ตัวอักษรของ setup code: ตัด 0/O/1/I/L ที่อ่านสับสนบนสติกเกอร์ทิ้ง
 CODE_ALPHABET="ABCDEFGHJKMNPQRSTUVWXYZ23456789"
 DEFAULT_TECH_USER="cafeadmin"
+NM_CONF_DIR="${CAFEWIFI_NM_CONF_DIR:-/etc/NetworkManager/conf.d}"
+SYSTEMCTL="${CAFEWIFI_SYSTEMCTL:-systemctl}"
+# service ที่ install.sh --stage site เปิด (configure_network/opennds, start_nginx, start_services)
+SITE_UNITS=(opennds.service dnsmasq.service nginx.service cafe-fas.service cafe-admin.service cafe-logger.service
+            cafe-wifi-netsetup.service cafe-wifi-conntrack-acct.service nftables.service
+            cafe-enforce.timer cafe-maintenance.timer cafe-reconcile.timer cafe-bypass-detect.timer)
+WIZARD_UNITS=(cafe-wifi-setup.service cafe-wifi-apply.path cafe-wifi-restore.path)
 
 log()  { printf '[firstboot] %s\n' "$*"; }
 fail() { printf '[firstboot] ผิดพลาด: %s\n' "$*" >&2; exit 1; }
@@ -191,8 +202,46 @@ ensure_tech_user() {
   mv -f "/etc/sudoers.d/010-${user}.new" "/etc/sudoers.d/010-${user}"
 }
 
+# ---------- factory reset (IMG-09) ----------
+# ตั้งเครือข่ายผิด/ย้ายเราเตอร์แล้วเข้าเครื่องไม่ได้ -> ช่างวางไฟล์ factory-reset บน bootfs (prepare-sd.ps1 -FactoryReset)
+# ไม่ลบข้อมูล: ม.26 บังคับเก็บ log >= 90 วัน และข้อมูลลูกค้า/กุญแจ/บัญชีพนักงานยังต้องใช้ต่อ
+# -> wizard ข้ามขั้นสร้างแอดมิน (มีอยู่แล้ว) ไป ③ เครือข่ายเลย
+# ทุกขั้นรันซ้ำได้ · ลบไฟล์ factory-reset เป็นขั้นสุดท้าย (ไฟดับกลางทาง = บูตหน้าทำต่อ)
+factory_reset() {
+  local boot flag f
+  boot="$(find_bootfs)"
+  flag="${boot}/factory-reset"
+  [[ -n "$boot" && -e "$flag" ]] || { log "ไม่มีไฟล์ factory-reset บน bootfs -- ไม่ทำอะไร"; return 0; }
+  if [[ ! -e "$DONE_FLAG" ]]; then
+    log "ยังไม่ผ่านบูตแรก -- ไม่ต้องรีเซ็ต (บูตแรกจะเข้าโหมดตั้งค่าเอง)"
+    rm -f "$flag"; return 0
+  fi
+  led busy
+  # journal ของ Pi ไม่ถาวร (หายตอนรีบูตท้ายฟังก์ชันนี้) -- เก็บบันทึกไว้เป็นหลักฐานว่ารีเซ็ตเมื่อไหร่
+  local logdir="${CAFEWIFI_LOG_DIR:-/var/log/cafe-wifi}"
+  if [[ -d "$logdir" ]]; then exec > >(tee -a "${logdir}/factory-reset.log") 2>&1; fi
+  log "$(date -Iseconds) factory reset: กลับเข้าโหมดตั้งค่า -- ข้อมูลลูกค้า, log, กุญแจ, บัญชีพนักงานยังอยู่ครบ"
+  [[ -f "${boot}/${CONF_NAME}" ]] && read_conf "${boot}/${CONF_NAME}"
+  CONF_GATEWAY_NAME=""                 # ชื่อร้านเดิมอยู่ใน secrets.env แล้ว (wizard ③ เติมให้/แก้ได้)
+  rm -f "$CODE_FILE"                   # code เดิมถูกลบตอนตั้งเสร็จอยู่แล้ว -- บังคับ code ใหม่เสมอ
+  ensure_setup_code "$boot"
+  ensure_tech_user                     # -FactoryReset ใส่ SSH key ใหม่มาได้ (เช่นช่างคนใหม่)
+  "$SYSTEMCTL" disable "${SITE_UNITS[@]}" >/dev/null 2>&1 || true
+  for f in "${NM_CONF_DIR}"/99-cafe-wifi-unmanage-*.conf; do
+    [[ -e "$f" ]] && { rm -f "$f"; log "คืน ${f##*/99-cafe-wifi-unmanage-} ให้ NetworkManager (DHCP)"; }
+  done
+  "$SYSTEMCTL" enable "${WIZARD_UNITS[@]}" >/dev/null 2>&1 || true
+  rm -f "${ETC_DIR}/.site-done"
+  sync
+  rm -f "$flag" "${boot}/${CONF_NAME}"
+  sync
+  log "factory reset เสร็จ -- รีบูตเข้าโหมดตั้งค่า (http://cafewifi.local)"
+  [[ "${CAFEWIFI_NO_REBOOT:-0}" == 1 ]] || "$SYSTEMCTL" reboot
+}
+
 main() {
   [[ $EUID -eq 0 || -n "${CAFEWIFI_ETC_DIR:-}" ]] || fail "ต้องรันด้วย root"
+  if [[ "${1:-}" == --factory-reset ]]; then factory_reset; return 0; fi
   if [[ -e "$DONE_FLAG" ]]; then log "ทำไปแล้ว (${DONE_FLAG}) -- ไม่ทำซ้ำ"; exit 0; fi
   led busy
 

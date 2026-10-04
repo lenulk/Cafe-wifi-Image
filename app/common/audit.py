@@ -34,6 +34,7 @@ STAFF_ENABLE = "staff_enable"
 STAFF_ROLE = "staff_role"
 STAFF_RESET_PASSWORD = "staff_reset_password"
 PASSWORD_CHANGE = "password_change"
+SETUP_RESTORE = "setup_restore"  # กู้คืนจากไฟล์สำรอง (.cwkey + USB) ผ่าน setup wizard -- เขียนโดย setup/restore.py หลังคืน DB
 KEY_BACKUP = "key_backup"  # ดาวน์โหลดไฟล์สำรองกุญแจเข้ารหัส (มีกุญแจถอดเลขบัตรทั้งร้าน) -- ต้องรู้ว่าใคร/เมื่อไหร่
 # คำขอใช้งานจาก portal (แทนสลิปรหัสผ่าน) -- ใครขอ เครื่องไหน ใครอนุมัติ/ปฏิเสธ
 ACCESS_REQUEST = "access_request"

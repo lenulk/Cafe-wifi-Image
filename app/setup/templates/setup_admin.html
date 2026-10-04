@@ -17,4 +17,8 @@
     <button type="submit">สร้างบัญชี</button>
   </form>
 </div>
+<div class="card">
+  <p class="hint" style="margin:0">การ์ดของเครื่องเดิมเสีย / ย้ายมาเครื่องใหม่ และมีไฟล์สำรองกุญแจ (.cwkey) + USB สำรองข้อมูล?</p>
+  <form method="get" action="{{ url_for('restore') }}"><button type="submit" class="secondary">กู้คืนจากเครื่องเดิม</button></form>
+</div>
 {% endblock %}

@@ -1,0 +1,20 @@
+# Cafe-WiFi factory reset (IMG-09) -- ทำงานเฉพาะเมื่อมีไฟล์ factory-reset บน bootfs (prepare-sd.ps1 -FactoryReset)
+# กลับเข้าโหมดตั้งค่าโดยไม่ลบข้อมูล แล้วรีบูต · สคริปต์: /usr/local/sbin/cafe-wifi-firstboot --factory-reset
+[Unit]
+Description=Cafe-WiFi factory reset: back to setup mode (keeps data)
+ConditionPathExists=/etc/cafe-wifi/.firstboot-done
+ConditionPathExists=|/boot/firmware/factory-reset
+ConditionPathExists=|/boot/factory-reset
+After=local-fs.target boot-firmware.mount boot.mount
+# ให้เสร็จ (แล้วรีบูต) ก่อน service ของร้าน/wizard จะเริ่มด้วยค่าเดิม -- ไม่ได้บังคับ: ถ้าเริ่มไปก่อนก็ถูกรีบูตตัดอยู่ดี
+Before=cafe-wifi-setup.service cafe-wifi-apply.path nginx.service opennds.service dnsmasq.service cafe-fas.service cafe-admin.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/cafe-wifi-firstboot --factory-reset
+TimeoutStartSec=5min
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target

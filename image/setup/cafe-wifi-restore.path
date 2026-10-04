@@ -1,0 +1,11 @@
+# กู้คืนจากเครื่องเดิมผ่าน setup wizard -- wizard (ผู้ใช้ cafewifi) วางคำขอ -> ปลุก cafe-wifi-restore.service (root)
+[Unit]
+Description=Cafe-WiFi setup: wait for restore request
+ConditionPathExists=!/etc/cafe-wifi/.site-done
+
+[Path]
+PathExists=/run/cafe-wifi-setup/restore.json
+Unit=cafe-wifi-restore.service
+
+[Install]
+WantedBy=multi-user.target

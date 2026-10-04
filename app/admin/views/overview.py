@@ -32,7 +32,43 @@ def status_page():
     backup["usb_present"] = os.path.exists("/dev/disk/by-label/CAFEBACKUP")
     return render_template("status.html", res=sysinfo.resources(), inet=sysinfo.internet_status(),
                            speed=sysinfo.last_speed_test(), backup=backup,
-                           ssh_port=os.environ.get("SSH_ALT_PORT", ""), **data)
+                           ssh_port=os.environ.get("SSH_ALT_PORT", ""), ssh_users=ssh_users(),
+                           ssh_host=os.environ.get("GATEWAY_IP") or "10.10.0.1", ca=ca_info(), **data)
+
+
+def ca_info() -> dict | None:
+    """ใบรับรองของหน้าแอดมินที่เครื่องพนักงานติดตั้งได้ (install.sh make_tls_cert) -- ลิงก์ + ลายนิ้วมือไว้เทียบ
+
+    ติดตั้งครั้งเดียวแล้ว Chrome Android เปิด https://admin.cafe.wifi ได้แม้เครื่องยังไม่ได้อนุมัติ
+    (ไม่งั้นติดหน้า "Connect to Wi-Fi" ไม่มีปุ่มข้าม) · ใบนี้จำกัดชื่อไว้แค่ cafe.wifi/IP ของ Pi
+    """
+    path = os.path.join(os.environ.get("CA_PUBLIC_DIR", "/var/lib/cafe-wifi-ca"), "cafe-wifi.crt")
+    try:
+        from cryptography import x509
+        from cryptography.hazmat.primitives import hashes
+        with open(path, "rb") as f:
+            cert = x509.load_pem_x509_certificate(f.read())
+    except (OSError, ValueError, ImportError):
+        return None
+    fp = cert.fingerprint(hashes.SHA256()).hex().upper()
+    host = os.environ.get("GATEWAY_IP") or "10.10.0.1"
+    # FAS_PORT ใน secrets.env คือพอร์ตภายในของ gunicorn (18080) -- มือถือเข้าผ่าน nginx พอร์ต 8080 (install.sh FAS_PORT)
+    return {"url": f"http://{host}:8080/cafe-wifi.crt",
+            "fingerprint": ":".join(fp[i:i + 2] for i in range(0, len(fp), 2)),
+            "expires": cert.not_valid_after_utc.date() if hasattr(cert, "not_valid_after_utc") else cert.not_valid_after.date()}
+
+
+def ssh_users() -> list[str]:
+    """บัญชีช่างที่ SSH เข้าได้ = สมาชิกกลุ่ม sudo (อ่านจาก /etc/group ใครก็อ่านได้)
+
+    เดิมเขียนตายตัว ras@10.10.0.1 -- เครื่องจาก image ใช้ cafeadmin (หรือ TECH_USER ใน cafewifi.conf)
+    และวงลูกค้าเปลี่ยนได้ใน wizard ช่างทำตามแล้วเข้าไม่ได้
+    """
+    try:
+        import grp
+        return [u for u in grp.getgrnam("sudo").gr_mem if u != "root"]
+    except (ImportError, KeyError):      # Windows (เทสต์) / ไม่มีกลุ่ม sudo
+        return []
 
 
 @routes.get("/status/live")
