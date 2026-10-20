@@ -1,8 +1,21 @@
 {% extends "base.html" %}
 {% block title %}ค้นหา log{% endblock %}
-{% macro find(value, label=None) -%}
-  {# คลิกค่าในตารางเพื่อค้นต่อด้วยค่านั้น (ช่วงเวลา/แท็บเดิม) #}
-  <a class="mono" href="{{ url_for('search_logs', **dict(params, q=value, page=1)) }}">{{ label or value }}</a>
+{% macro find(value, label=None, cid='') -%}
+  {# คลิกค่าในตารางเพื่อค้นต่อด้วยค่านั้น (ช่วงเวลา/แท็บเดิม) · cid ว่างเสมอยกเว้นคลิกลูกค้า #}
+  <a class="mono" href="{{ url_for('search_logs', **dict(params, q=value, cid=cid, page=1)) }}">{{ label or value }}</a>
+{%- endmacro %}
+{% macro summ(mac='', cid='') -%}
+  {# ลิงก์ไปหน้าสรุป -- แสดงเมื่อมีหน้านั้นในระบบเท่านั้น (summary_ok) #}
+  {%- if summary_ok %} <a class="sumlink" href="{{ url_for('log_summary', mac=mac or None, cid=cid or None, range=params.range, start=params.start or None, end=params.end or None) }}">สรุป</a>{% endif -%}
+{%- endmacro %}
+{% macro cust(r) -%}
+  {# เลขบัตรในตาราง: admin เห็นเลขเต็ม (r.natid_full) ส่วน staff เห็น masked · คลิก = ค้นตามลูกค้าคนนี้
+     (q เป็น masked เสมอ เลขเต็มไม่เข้า URL) #}
+  {%- if r.customer_id -%}
+    {{ find(r.natid_masked, r.natid_full or r.natid_masked, r.customer_id) }}{{ summ(cid=r.customer_id) }}
+  {%- else -%}
+    {{ r.natid_full or r.natid_masked }}
+  {%- endif -%}
 {%- endmacro %}
 {% macro device(r) -%}
   {# ใต้เลขบัตร: ชื่อเครื่องอ่านง่ายกว่าเลขสิทธิ์ CAFE-xxxxx ที่สุ่มมา -- session เก่าก่อนมีฟีเจอร์นี้
@@ -21,7 +34,7 @@
   {%- if r.hint %}<br>
     {%- if r.hint.hostname %}{{ find(r.hint.hostname) }}{% elif r.hint.os_label %}{{ r.hint.os_label }}{% endif %}
     <div class="hint" title="ข้อมูลประกอบจากเครื่อง (MAC) เดียวกัน — แถวนี้เกิดตอนเครื่องไม่ได้ใช้สิทธิ์ของใคร จึงไม่นับเป็นของลูกค้าคนนี้">
-      {{ r.hint.when }} {{ r.hint.natid_masked or '-' }}</div>
+      {{ r.hint.when }} {{ r.hint.natid_full or r.hint.natid_masked or '-' }}</div>
   {%- endif %}
 {%- endmacro %}
 {% block body %}
@@ -37,8 +50,26 @@
   .ranges label:has(input:checked){border-color:var(--accent)}
   .searchrow{display:flex;gap:.5rem}
   .searchrow input{flex:1}
+  .sbox{position:relative;flex:1;min-width:0}
+  .sbox input{width:100%;box-sizing:border-box}
+  .sugg{position:absolute;left:0;right:0;top:100%;margin-top:2px;z-index:20;max-height:320px;overflow-y:auto;
+        background:var(--card);border:1px solid var(--line);border-radius:8px;
+        box-shadow:0 6px 18px rgba(0,0,0,.18)}
+  .sugg[hidden]{display:none}
+  .sugg .sg-head{padding:.35rem .75rem .15rem;font-size:.75rem;font-weight:600;color:var(--muted);
+                 background:var(--bg);border-bottom:1px solid var(--line)}
+  .sugg .sg-row{display:flex;flex-direction:column;justify-content:center;min-height:44px;
+                padding:.4rem .75rem;cursor:pointer;border-bottom:1px solid var(--line)}
+  .sugg .sg-row:last-child{border-bottom:0}
+  .sugg .sg-row[aria-selected=true],.sugg .sg-row:hover{background:var(--accent);color:var(--accent-ink)}
+  .sugg .sg-label{font-weight:700;overflow-wrap:anywhere}
+  .sugg .sg-detail{font-size:.8rem;color:var(--muted);overflow-wrap:anywhere}
+  .sugg .sg-row[aria-selected=true] .sg-detail,.sugg .sg-row:hover .sg-detail{color:inherit;opacity:.85}
+  .sugg .sg-err{padding:.5rem .75rem;font-size:.8rem;color:var(--muted)}
   .muted{color:var(--muted)}
   td a.mono{text-decoration:none;border-bottom:1px dotted var(--muted);color:inherit}
+  a.sumlink{font-size:.75rem;margin-left:.35rem;color:var(--muted)}
+  .interp{margin:.4rem 0 0;font-size:.85rem;color:var(--muted)}
 </style>
 
 <div class="card">
@@ -54,10 +85,31 @@
 
   <form method="get" id="logform">
     <input type="hidden" name="log_type" value="{{ params.log_type }}">
+    <input type="hidden" name="cid" value="{{ params.cid }}">
     <div class="searchrow">
-      <input type="text" name="q" value="{{ params.q }}" autofocus autocomplete="off"
-             placeholder="เลขบัตร 13 หลัก · CAFE-xxxxx · MAC · IP · ชื่อเครื่อง · ชื่อเว็บ (เว้นว่าง = ทั้งหมด)">
+      <div class="sbox">
+        <input type="text" name="q" id="q" value="{{ params.q }}" autofocus autocomplete="off"
+               role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sugg"
+               placeholder="เลขบัตร 13 หลัก · CAFE-xxxxx · MAC · IP · ชื่อเครื่อง · ชื่อเว็บ (เว้นว่าง = ทั้งหมด)">
+        <div id="sugg" class="sugg" role="listbox" aria-label="คำแนะนำการค้นหา" hidden></div>
+      </div>
       <button type="submit" style="width:auto">ค้นหา</button>
+    </div>
+
+    <div class="grid" style="grid-template-columns:{{ '2fr 1fr 1fr' if params.log_type == 'conn' else '1fr' }};margin-top:.5rem">
+      <div><label for="site">ชื่อเว็บ / IP ปลายทาง (ไม่บังคับ)</label>
+        <input type="text" name="site" id="site" value="{{ params.site }}" autocomplete="off"
+               placeholder="เช่น facebook.com · 157.240.1.35 · 157.240.0.0/16 — ใช้คู่กับช่องค้นหาด้านบน (ต้องตรงทั้งคู่)"></div>
+      {% if params.log_type == 'conn' %}
+      <div><label for="port">พอร์ตปลายทาง</label>
+        <input type="number" name="port" id="port" min="1" max="65535" value="{{ params.port }}" placeholder="เช่น 443"></div>
+      <div><label for="proto">โปรโตคอล</label>
+        <select name="proto" id="proto">
+          {% for v, lab in [('', 'ทั้งหมด'), ('tcp', 'tcp'), ('udp', 'udp'), ('icmp', 'icmp'), ('other', 'other')] %}
+          <option value="{{ v }}" {{ 'selected' if params.proto == v }}>{{ lab }}</option>
+          {% endfor %}
+        </select></div>
+      {% endif %}
     </div>
 
     <div class="ranges" role="radiogroup" aria-label="ช่วงเวลา">
@@ -82,7 +134,12 @@
       {% endif %}
     </div>
   </form>
-  <p class="hint">ทุกการค้นถูกบันทึกใน audit log (PDPA) · เลขบัตรแสดงแบบปิดบางหลักเท่านั้น ·
+  {% if kind_label or site_label %}<p class="interp">ค้นเป็น:{{ ' ' }}
+    {%- if kind_label %}<strong>{{ kind_label }}</strong>{% endif %}
+    {%- if site_label %}{{ ' + ' if kind_label }}ปลายทาง: <strong>{{ site_label }}</strong>{% endif %}
+    {%- if params.log_type == 'conn' and params.port %} · พอร์ต <strong>{{ params.port }}</strong>{% endif %}
+    {%- if params.log_type == 'conn' and params.proto %} · <strong>{{ params.proto }}</strong>{% endif %}</p>{% endif %}
+  <p class="hint">ทุกการค้นถูกบันทึกใน audit log (PDPA) · {{ 'ผู้ดูแลระบบเห็นเลขบัตรเต็ม (บันทึก audit ทุกครั้ง)' if current_role == 'admin' else 'เลขบัตรแสดงแบบปิดบางหลักเท่านั้น' }} ·
     ค้นได้ครั้งละไม่เกิน 31 วัน</p>
 </div>
 
@@ -109,10 +166,10 @@
     {% for r in rows %}
     <tr>
       <td>{{ r.ts.strftime('%d/%m %H:%M:%S') }}</td>
-      <td>{% if r.natid_masked %}{{ r.natid_masked }}<br>{{ device(r) }}
+      <td>{% if r.natid_masked %}{{ cust(r) }}<br>{{ device(r) }}
           {% elif r.event_kind == 'answer' %}<span class="muted">คำตอบ DNS</span>
           {% else %}{{ unidentified(r, "ก่อนได้รับอนุมัติ หรือหลังถูกปิดสิทธิ์/หมดเวลา") }}{% endif %}</td>
-      <td>{% if r.mac %}{{ find(r.mac) }}{% endif %}{% if r.client_ip %}<br>{{ find(r.client_ip) }}{% endif %}</td>
+      <td>{% if r.mac %}{{ find(r.mac) }}{{ summ(mac=r.mac) }}{% endif %}{% if r.client_ip %}<br>{{ find(r.client_ip) }}{% endif %}</td>
       <td>{{ find(r.qname) }}</td>
       <td>{{ r.qtype or ('คำตอบ' if r.event_kind == 'answer' else '-') }}</td>
       <td>{% if r.answer %}{{ find(r.answer) }}{% else %}-{% endif %}</td>
@@ -125,10 +182,10 @@
       <td>{{ (r.started_at or r.ts).strftime('%d/%m %H:%M:%S') }}</td>
       <td>{% if r.started_at %}{% set sec = ((r.ts - r.started_at).total_seconds())|int %}
           {{ (sec // 60) ~ ' นาที' if sec >= 60 else (sec ~ ' วิ') }}{% else %}-{% endif %}</td>
-      <td>{% if r.natid_masked %}{{ r.natid_masked }}<br>{{ device(r) }}
+      <td>{% if r.natid_masked %}{{ cust(r) }}<br>{{ device(r) }}
           {% else %}{{ unidentified(r, "ก่อนได้รับอนุมัติ หรือหลังถูกปิดสิทธิ์/หมดเวลา หรือจับคู่ได้ไม่แน่นอน") }}{% endif %}</td>
-      <td>{% if r.mac %}{{ find(r.mac) }}<br>{% endif %}{{ find(r.src_ip) }}</td>
-      <td>{{ find(r.dst_ip) }}<span class="muted">:{{ r.dst_port or '-' }} {{ r.proto }}</span></td>
+      <td>{% if r.mac %}{{ find(r.mac) }}{{ summ(mac=r.mac) }}<br>{% endif %}{{ find(r.src_ip) }}</td>
+      <td>{% if r.dst_name %}<span class="muted" title="ชื่อเว็บที่เครื่องถาม DNS ก่อนเชื่อมต่อ">{{ r.dst_name }}</span><br>{% endif %}{{ find(r.dst_ip) }}<span class="muted">:{{ r.dst_port or '-' }} {{ r.proto }}</span></td>
       <td>{{ r.bytes_out|human_bytes }} / {{ r.bytes_in|human_bytes }}</td>
     </tr>
     {% endfor %}
@@ -157,5 +214,140 @@
       document.getElementById('custom').style.display = el.value === 'custom' ? '' : 'none';
     });
   });
+
+  // คำแนะนำตอนพิมพ์ (autocomplete) -- ไม่มี JS ก็ยังพิมพ์แล้วกดค้นหาได้เหมือนเดิม
+  // DOM ทั้งหมดสร้างด้วย createElement + textContent เท่านั้น (ชื่อเครื่องมาจากลูกค้า ห้ามเชื่อถือ)
+  (function () {
+    var form = document.getElementById('logform');
+    var input = document.getElementById('q');
+    var list = document.getElementById('sugg');
+    var cid = form && form.elements['cid'];
+    if (!form || !input || !list || !window.fetch) return;
+
+    var URL_SUGGEST = {{ url_for('suggest_logs')|tojson }};
+    var GROUPS = {customer: 'ลูกค้า (เลขบัตร)', device: 'อุปกรณ์', voucher: 'เลขอ้างอิง', mac: 'MAC', ip: 'IP'};
+    var timer = null, ctrl = null, seq = 0, items = [], active = -1;
+
+    function setCid(v) { if (cid) cid.value = v; }
+
+    function close() {
+      list.hidden = true;
+      list.textContent = '';
+      items = []; active = -1;
+      input.setAttribute('aria-expanded', 'false');
+      input.removeAttribute('aria-activedescendant');
+    }
+
+    function highlight(i) {
+      var rows = list.querySelectorAll('.sg-row');
+      rows.forEach(function (r) { r.setAttribute('aria-selected', 'false'); });
+      active = i;
+      if (i >= 0 && rows[i]) {
+        rows[i].setAttribute('aria-selected', 'true');
+        input.setAttribute('aria-activedescendant', rows[i].id);
+        rows[i].scrollIntoView({block: 'nearest'});
+      } else {
+        input.removeAttribute('aria-activedescendant');
+      }
+    }
+
+    function choose(i) {
+      var it = items[i];
+      if (!it) return;
+      input.value = it.q;
+      setCid(it.group === 'customer' && it.cid != null ? String(it.cid) : '');
+      close();
+      if (form.requestSubmit) form.requestSubmit(); else form.submit();
+    }
+
+    function render(data) {
+      list.textContent = '';
+      items = data;
+      active = -1;
+      input.removeAttribute('aria-activedescendant');
+      if (!items.length) { close(); return; }
+      var last = null;
+      items.forEach(function (it, i) {
+        if (it.group !== last) {
+          last = it.group;
+          var h = document.createElement('div');
+          h.className = 'sg-head';
+          h.setAttribute('role', 'presentation');
+          h.textContent = GROUPS[it.group] || String(it.group);
+          list.appendChild(h);
+        }
+        var row = document.createElement('div');
+        row.className = 'sg-row';
+        row.id = 'sugg-' + i;
+        row.setAttribute('role', 'option');
+        row.setAttribute('aria-selected', 'false');
+        var l = document.createElement('span');
+        l.className = 'sg-label';
+        l.textContent = it.label;
+        row.appendChild(l);
+        if (it.detail) {
+          var d = document.createElement('span');
+          d.className = 'sg-detail';
+          d.textContent = it.detail;
+          row.appendChild(d);
+        }
+        // mousedown + preventDefault: ไม่ให้ช่องค้นหาเสีย focus ก่อนคลิกทำงาน
+        row.addEventListener('mousedown', function (e) { e.preventDefault(); choose(i); });
+        list.appendChild(row);
+      });
+      list.hidden = false;
+      input.setAttribute('aria-expanded', 'true');
+    }
+
+    function fetchSuggest(q) {
+      if (ctrl) ctrl.abort();
+      ctrl = window.AbortController ? new AbortController() : null;
+      var mine = ++seq;
+      fetch(URL_SUGGEST + '?q=' + encodeURIComponent(q),
+            {credentials: 'same-origin', signal: ctrl ? ctrl.signal : undefined})
+        .then(function (r) { return r.json().catch(function () { return {items: []}; }); })
+        .then(function (j) {
+          if (mine !== seq) return;               // คำตอบเก่า ทิ้ง
+          if (input.value.trim() !== q) return;   // ผู้ใช้พิมพ์ต่อไปแล้ว
+          if (document.activeElement !== input) return;
+          render((j && Array.isArray(j.items)) ? j.items : []);
+        })
+        .catch(function () { /* ยกเลิก/เครือข่ายล้ม -- ซ่อนเงียบ ๆ */ });
+    }
+
+    input.addEventListener('input', function () {
+      setCid('');                                  // พิมพ์เองแล้ว = ไม่ใช่ลูกค้าที่เลือกไว้เดิม
+      clearTimeout(timer);
+      var q = input.value.trim();
+      if (!q) { seq++; if (ctrl) ctrl.abort(); close(); return; }
+      var digits = q.replace(/[\s-]/g, '');
+      if (/^\d+$/.test(digits) && digits.length < 2) { seq++; if (ctrl) ctrl.abort(); close(); return; }
+      timer = setTimeout(function () { fetchSuggest(q); }, 300);
+    });
+
+    input.addEventListener('keydown', function (e) {
+      var open = !list.hidden && items.length;
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        if (!open) return;
+        e.preventDefault();
+        var n = items.length;
+        highlight(e.key === 'ArrowDown' ? (active + 1) % n : (active <= 0 ? n - 1 : active - 1));
+      } else if (e.key === 'Enter') {
+        if (open && active >= 0) { e.preventDefault(); choose(active); }
+      } else if (e.key === 'Escape') {
+        if (open) { e.preventDefault(); }
+        clearTimeout(timer); seq++; if (ctrl) ctrl.abort(); close();
+      } else if (e.key === 'Tab') {
+        clearTimeout(timer); seq++; if (ctrl) ctrl.abort(); close();
+      }
+    });
+
+    input.addEventListener('blur', function () {
+      setTimeout(function () { clearTimeout(timer); seq++; if (ctrl) ctrl.abort(); close(); }, 150);
+    });
+    document.addEventListener('mousedown', function (e) {
+      if (!form.contains(e.target) || !e.target.closest('.sbox')) close();
+    });
+  })();
 </script>
 {% endblock %}

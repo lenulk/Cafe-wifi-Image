@@ -11,8 +11,10 @@ from __future__ import annotations
 # ด้วย mac + ip + ช่วงเวลาที่ session เปิดสิทธิ์อยู่ (ไม่ใช่แค่ join ตาม mac เฉย ๆ) เพราะ MAC
 # เดียวกันใช้กับ voucher คนละใบคนละช่วงเวลาได้จริง -- ถ้า join แค่ mac จะได้ผลลัพธ์ผิดคนเมื่อ MAC
 # ถูกนำกลับมาใช้ซ้ำข้ามช่วงเวลา ถ้าเข้าได้มากกว่า 1 session จะไม่เดา (ps เป็น NULL)
-# c.natid_masked มาจากคอลัมน์ที่เก็บค่า mask ไว้แล้วใน DB (ไม่เคย SELECT natid_enc/natid_hash)
-# จึงไม่มีทางเห็นเลขเต็มไม่ว่า role ไหน ตรงตาม §6.2 ข้อ 5
+# c.natid_masked มาจากคอลัมน์ที่เก็บค่า mask ไว้แล้วใน DB -- คิวรี่ JOIN นี้ไม่เคย SELECT natid_enc/natid_hash
+# เลขเต็มสำหรับ admin เท่านั้นถูกถอดรหัสแยกต่างหากใน admin/views/logs.py (_attach_full_natids: คิวรี่
+# ที่สองตาม c.id หลังได้ผลแล้ว, ข้ามลูกค้า PURGED, ลง audit view_natid_log/export_log ก่อนส่งข้อมูลออก)
+# staff ไม่เคยผ่านขั้นนั้น จึงเห็นแต่เลข masked ตาม §6.2 ข้อ 5
 # R2-02: conn_log.ts คือเวลาจบ connection (DESTROY) ซึ่งอาจเลยช่วง session ของเจ้าของไปแล้ว
 # จึงจับคู่ด้วยเวลาเริ่ม ({tsexpr} = COALESCE(cl.started_at, cl.ts)) ส่วน dns_log ใช้ ts ตรง ๆ
 MAPPING_JOIN = (

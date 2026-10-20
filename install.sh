@@ -1026,6 +1026,25 @@ SQL
     die "ไม่พบ sql/011_device_info.sql — portal และหน้าอนุมัติต้องใช้คอลัมน์ในไฟล์นี้"
   fi
 
+  # ชื่อเว็บปลายทางใน conn_log -- cafe-logger INSERT คอลัมน์ dst_name เสมอ ต้องมีก่อน logger เริ่ม
+  local dstname="${SCRIPT_DIR}/sql/015_conn_dst_name.sql"
+  if [[ -f "$dstname" ]]; then
+    run_sh "mysql '${DB_NAME}' < '${dstname}'"
+    ok "เพิ่มคอลัมน์ conn_log.dst_name แล้ว"
+  else
+    die "ไม่พบ sql/015_conn_dst_name.sql — cafe-logger จะเขียน conn_log ไม่ได้ถ้าไม่มีคอลัมน์นี้"
+  fi
+
+  # คอลัมน์ qname กลับด้าน + ดัชนี ให้หน้าค้นหา log ค้นโดเมนแบบใช้ดัชนีได้ (ALTER ตาราง dns_log
+  # ที่ใหญ่อาจใช้เวลาเป็นนาที -- ดูหมายเหตุใน sql/014_dns_qname_rev.sql)
+  local qrev="${SCRIPT_DIR}/sql/014_dns_qname_rev.sql"
+  if [[ -f "$qrev" ]]; then
+    run_sh "mysql '${DB_NAME}' < '${qrev}'"
+    ok "เพิ่มคอลัมน์ qname_rev + ดัชนีสำหรับค้นโดเมนแล้ว"
+  else
+    warn "ไม่พบ sql/014_dns_qname_rev.sql — ข้าม (การค้นโดเมนจะช้าเมื่อข้อมูลเยอะ แต่ยังทำงานถูกต้อง)"
+  fi
+
 
   # แก้บั๊ก (พบตอนตรวจทานรอบ 2): sql/003_partitions.sql มีอยู่ในโปรเจกต์และ Task Board
   # ติ๊กว่าเขียนแล้ว แต่ install.sh ไม่เคยเรียกใช้ไฟล์นี้เลยสักบรรทัด -- เป็น optional

@@ -394,9 +394,9 @@ if __name__ == "__main__":
 
 # ---------------------------------------------------------------- ผูกหน้าต่าง ๆ จาก admin/views/
 # import ไว้ท้ายไฟล์ (ไฟล์เหล่านั้น import admin.app กลับมาใช้ตัวช่วย) · register ทุกครั้งที่ไฟล์นี้ทำงาน
-from admin.views import access, customers, keys, logs, overview, staff  # noqa: E402
+from admin.views import access, audit_view, customers, keys, log_suggest, log_summary, logs, overview, staff  # noqa: E402
 
-for _views in (overview, staff, access, customers, logs, keys):
+for _views in (overview, staff, access, customers, logs, log_suggest, log_summary, keys, audit_view):
     _views.routes.register(app)
 
 # เทสต์เดิมอ้างถึงผ่าน admin.app

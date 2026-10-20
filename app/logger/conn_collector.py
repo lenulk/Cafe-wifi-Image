@@ -23,6 +23,7 @@ import sys
 import threading
 import time
 from dataclasses import dataclass, replace
+from datetime import timedelta
 
 from .netutil import MacCache
 from .telemetry import CollectorTelemetry
@@ -261,6 +262,91 @@ def _mac_from_session_history(cur, ip: str, at) -> str | None:
     return row["mac"] if isinstance(row, dict) else row[0]
 
 
+# ---------------------------------------------------------------- dst_name (sql/015)
+# หาชื่อเว็บปลายทางตอนเขียน conn_log: ชื่อที่ "เครื่องต้นทางถาม DNS แล้วได้ IP ปลายทางนี้"
+# ภายใน 1 ชม.ก่อน connection เริ่ม (เผื่อแคช DNS ของเครื่อง) · แถว answer ใน dns_log ไม่มี client_ip
+# (dnsmasq ไม่บอกผู้ถามในบรรทัด reply) จึงต้องยืนยันผ่านแถว query ที่ชื่อเดียวกันของเครื่องนี้
+# ถ้ายืนยันไม่ได้ให้เป็น NULL ดีกว่าเดาชื่อผิดให้หลักฐาน (หน้า Admin ยังมีทางประมาณจาก DNS เดิม)
+DST_NAME_WINDOW = 3600.0          # วินาทีย้อนหลังจากเวลาเริ่ม connection
+DST_NAME_SLACK = 5.0              # DNS thread เขียนช้ากว่า/นาฬิกาเหลื่อมได้เล็กน้อย
+DST_NAME_MAX_SPAN = 6 * 3600.0    # เพดานช่วงที่ค้น dns_log ต่อ batch (connection ยาวมากไม่ต้องลาก)
+DST_NAME_MAX_IPS = 400            # เพดานจำนวน IP ใน IN (...) ต่อ query
+
+
+def resolve_dst_names(items, answers, queries,
+                      window: float = DST_NAME_WINDOW, slack: float = DST_NAME_SLACK):
+    """
+    ฟังก์ชันล้วน (ไม่แตะ DB) -- คืน list[str | None] ยาวเท่า items
+
+    items:   [(src_ip, dst_ip, at: datetime)]  at = เวลาเริ่ม connection (หรือ ts ถ้าไม่รู้)
+    answers: [(ts: datetime, qname, answer_ip)]   แถว dns_log event_kind='answer'
+    queries: [(ts: datetime, client_ip, qname)]   แถว dns_log event_kind='query'
+
+    กติกา: เลือก answer ที่ answer == dst_ip, ts ใน [at-window, at+slack], ใหม่สุดก่อน และ
+    ต้องมี query ชื่อเดียวกัน (ไม่สนตัวพิมพ์) จาก client_ip == src_ip ในช่วงเดียวกัน
+    """
+    by_ip: dict[str, list] = {}
+    for ts, qname, ans in answers:
+        if ans and qname:
+            by_ip.setdefault(ans, []).append((ts, qname))
+    for lst in by_ip.values():
+        lst.sort(key=lambda x: x[0], reverse=True)
+    asked: dict[tuple[str, str], list] = {}
+    for ts, cip, qname in queries:
+        if cip and qname:
+            asked.setdefault((cip, qname.lower()), []).append(ts)
+
+    out: list[str | None] = []
+    for src_ip, dst_ip, at in items:
+        name = None
+        lo, hi = at - timedelta(seconds=window), at + timedelta(seconds=slack)
+        for a_ts, qname in by_ip.get(dst_ip, ()):
+            if a_ts > hi:
+                continue
+            if a_ts < lo:
+                break  # เรียงใหม่->เก่า ที่เหลือเก่ากว่าหน้าต่างหมด
+            if any(lo <= q <= hi for q in asked.get((src_ip, qname.lower()), ())):
+                name = qname[:255]
+                break
+        out.append(name)
+    return out
+
+
+def _rows(cur):
+    for row in cur.fetchall():
+        yield tuple(row.values()) if isinstance(row, dict) else tuple(row)
+
+
+def lookup_dst_names(cur, items) -> list[str | None]:
+    """ค้น dns_log 2 query ต่อ batch (ไม่ใช่ต่อแถว) แล้วให้ resolve_dst_names ตัดสิน
+    พังตรงไหนก็คืน None ทั้งหมด -- ห้ามให้การหาชื่อทำให้ conn_log ไม่ถูกเขียน"""
+    empty: list[str | None] = [None] * len(items)
+    try:
+        ips = sorted({d for _, d, _ in items})
+        if not ips or len(ips) > DST_NAME_MAX_IPS:
+            return empty
+        hi = max(at for _, _, at in items) + timedelta(seconds=DST_NAME_SLACK)
+        lo = min(at for _, _, at in items) - timedelta(seconds=DST_NAME_WINDOW)
+        lo = max(lo, hi - timedelta(seconds=DST_NAME_MAX_SPAN))
+        marks = ",".join(["%s"] * len(ips))
+        cur.execute("SELECT ts, qname, answer FROM dns_log WHERE event_kind='answer' "
+                    f"AND ts BETWEEN %s AND %s AND answer IN ({marks})", (lo, hi, *ips))
+        answers = list(_rows(cur))
+        if not answers:
+            return empty
+        names = sorted({q for _, q, _ in answers})
+        srcs = sorted({s for s, _, _ in items})
+        if len(names) > DST_NAME_MAX_IPS * 2:
+            return empty
+        cur.execute("SELECT ts, client_ip, qname FROM dns_log WHERE event_kind='query' "
+                    f"AND ts BETWEEN %s AND %s AND client_ip IN ({','.join(['%s'] * len(srcs))}) "
+                    f"AND qname IN ({','.join(['%s'] * len(names))})", (lo, hi, *srcs, *names))
+        return resolve_dst_names(items, answers, list(_rows(cur)))
+    except Exception:
+        log.warning("หา dst_name ไม่สำเร็จ -- เขียน conn_log โดยไม่ใส่ชื่อ", exc_info=True)
+        return empty
+
+
 def insert_conn_records(records: list[ConnRecord], mac_cache: MacCache | None = None,
                         on_unmapped=None) -> int:
     """เขียนกลุ่ม record ลง conn_log เป็น batch — คืนจำนวนแถวที่เขียนสำเร็จ
@@ -286,9 +372,12 @@ def insert_conn_records(records: list[ConnRecord], mac_cache: MacCache | None = 
                 unmapped += 1
             rows.append((datetime.fromtimestamp(r.ts), started, mac, r.src_ip, r.src_port,
                          r.dst_ip, r.dst_port, r.proto, r.bytes_out, r.bytes_in))
+        # dst_name: 2 query ต่อ batch (ดู lookup_dst_names) · at = เวลาเริ่ม ถ้าไม่รู้ใช้ ts
+        names = lookup_dst_names(cur, [(row[3], row[5], row[1] or row[0]) for row in rows])
+        rows = [row[:6] + (nm,) + row[6:] for row, nm in zip(rows, names)]
         cur.executemany(
-            "INSERT INTO conn_log (ts, started_at, mac, src_ip, src_port, dst_ip, dst_port, "
-            "proto, bytes_out, bytes_in) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)", rows)
+            "INSERT INTO conn_log (ts, started_at, mac, src_ip, src_port, dst_ip, dst_name, "
+            "dst_port, proto, bytes_out, bytes_in) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)", rows)
     if on_unmapped and unmapped:
         on_unmapped(unmapped)
     return len(rows)

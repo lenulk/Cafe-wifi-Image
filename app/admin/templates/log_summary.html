@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}สรุปการใช้งาน{% endblock %}
+{% macro find(value, log_type) -%}
+  <a class="mono" href="{{ url_for('search_logs', q=value, log_type=log_type, range=params.range, start=params.start, end=params.end) }}">{{ value }}</a>
+{%- endmacro %}
+{% block body %}
+<style>
+  .ranges{display:flex;flex-wrap:wrap;gap:.4rem;margin:.4rem 0}
+  .ranges label{margin:0;font-weight:400;border:1px solid var(--line);border-radius:999px;
+                padding:.3rem .85rem;cursor:pointer}
+  .ranges input{display:none}
+  .ranges input:checked + span{font-weight:700;color:var(--accent)}
+  .ranges label:has(input:checked){border-color:var(--accent)}
+  .muted{color:var(--muted)}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.75rem;margin:.5rem 0}
+  .stats div{border:1px solid var(--line);border-radius:8px;padding:.6rem .8rem}
+  .stats b{display:block;font-size:1.2rem}
+  td.wrap{white-space:normal;overflow-wrap:anywhere;word-break:break-word}
+  td a.mono{text-decoration:none;border-bottom:1px dotted var(--muted);color:inherit}
+  .scroll{overflow-x:auto}
+</style>
+
+<div class="card">
+  <h1>สรุปการใช้งาน
+    {% if kind == 'mac' %}<span class="mono">{{ mac }}</span>{% else %}ลูกค้า #{{ cid }}{% endif %}</h1>
+
+  {% if kind == 'mac' %}
+    <p>
+      {% if device_now %}
+        ชื่อเครื่องล่าสุด: <b>{{ device_now.hostname or '-' }}</b>
+        {% if device_now.os_label %}<span class="muted">· {{ device_now.os_label }}</span>{% endif %}
+      {% else %}<span class="muted">ไม่พบ session ของเครื่องนี้</span>{% endif %}
+    </p>
+    <p class="hint">ทุกการใช้งานของเครื่องนี้ (อาจหลายลูกค้า) — แสดงทุกแถว log ของ MAC นี้ในช่วงเวลา ไม่แยกว่าใครใช้ตอนไหน</p>
+    <p><b>ลูกค้าที่เคยใช้เครื่องนี้</b></p>
+    {% if owners %}
+    <ul>
+      {% for o in owners %}
+      <li>{% if is_admin and o.full %}<span class="mono">{{ o.full }}</span>{% else %}<span class="mono">{{ o.natid_masked }}</span>{% endif %}
+        <span class="hint">· ใช้ล่าสุด {{ o.last_used.strftime('%d/%m/%Y %H:%M') if o.last_used else '-' }}</span>
+        <a href="{{ url_for('log_summary', cid=o.id, range=params.range, start=params.start, end=params.end) }}">สรุปรายลูกค้า</a></li>
+      {% endfor %}
+    </ul>
+    {% else %}<p class="hint">ไม่พบ</p>{% endif %}
+  {% else %}
+    <p>เลขบัตร:
+      <span class="mono">{% if is_admin and customer.full %}{{ customer.full }}{% else %}{{ customer.natid_masked }}{% endif %}</span></p>
+    <p class="hint">มาครั้งแรก {{ customer.first_seen.strftime('%d/%m/%Y %H:%M') if customer.first_seen else '-' }}
+      · ล่าสุด {{ customer.last_seen.strftime('%d/%m/%Y %H:%M') if customer.last_seen else '-' }}
+      · มา {{ customer.visit_count }} ครั้ง</p>
+    <p class="hint">แถว log นับเฉพาะช่วงที่เครื่องใช้สิทธิ์ของลูกค้ารายนี้เท่านั้น (MAC + IP + เวลา)</p>
+    <p><b>อุปกรณ์</b></p>
+    {% if devices %}
+    <div class="scroll"><table>
+      <tr><th>MAC</th><th>ชื่อเครื่อง</th><th>ระบบ</th><th>ใช้ล่าสุด</th></tr>
+      {% for d in devices %}
+      <tr><td class="mono"><a href="{{ url_for('log_summary', mac=d.mac, range=params.range, start=params.start, end=params.end) }}">{{ d.mac }}</a></td>
+        <td class="wrap">{{ d.hostname or '-' }}</td><td class="wrap">{{ d.os_label or '-' }}</td>
+        <td>{{ d.authenticated_at.strftime('%d/%m %H:%M') if d.authenticated_at else '-' }}</td></tr>
+      {% endfor %}
+    </table></div>
+    {% else %}<p class="hint">ไม่พบอุปกรณ์</p>{% endif %}
+  {% endif %}
+
+  <form method="get" style="margin-top:1rem">
+    {% if kind == 'mac' %}<input type="hidden" name="mac" value="{{ mac }}">
+    {% else %}<input type="hidden" name="cid" value="{{ cid }}">{% endif %}
+    <div class="ranges" role="radiogroup" aria-label="ช่วงเวลา">
+      {% for key, label in ranges.items() %}
+      <label><input type="radio" name="range" value="{{ key }}" {{ 'checked' if params.range == key }}><span>{{ label }}</span></label>
+      {% endfor %}
+    </div>
+    <div id="custom" class="grid" style="grid-template-columns:1fr 1fr;{{ '' if params.range == 'custom' else 'display:none' }}">
+      <div><label for="start">ตั้งแต่</label>
+        <input type="datetime-local" id="start" name="start" value="{{ params.start }}"></div>
+      <div><label for="end">ถึง</label>
+        <input type="datetime-local" id="end" name="end" value="{{ params.end }}"></div>
+    </div>
+    <p style="margin-top:.75rem"><button type="submit">ดูสรุป</button></p>
+  </form>
+  <p class="hint">ช่วง {{ start_dt.strftime('%d/%m %H:%M') }} – {{ end_dt.strftime('%d/%m %H:%M') }} · ไม่เกิน 31 วัน · การเปิดหน้านี้ถูกบันทึก</p>
+</div>
+
+<div class="card">
+  <h2 style="margin:0 0 .5rem">ปริมาณข้อมูล</h2>
+  <div class="stats">
+    <div><b>{{ totals.n }}</b><span class="hint">การเชื่อมต่อ</span></div>
+    <div><b>{{ totals.bytes_out|human_bytes }}</b><span class="hint">ส่งออก (อัปโหลด)</span></div>
+    <div><b>{{ totals.bytes_in|human_bytes }}</b><span class="hint">รับเข้า (ดาวน์โหลด)</span></div>
+  </div>
+  <h3>ปลายทางที่ใช้ข้อมูลมากสุด</h3>
+  {% if top_dst %}
+  <div class="scroll"><table>
+    <tr><th>IP ปลายทาง</th><th>ข้อมูลรวม</th><th>การเชื่อมต่อ</th></tr>
+    {% for r in top_dst %}
+    <tr><td>{{ find(r.dst_ip, 'conn') }}</td><td>{{ (r.total or 0)|human_bytes }}</td><td>{{ r.n }}</td></tr>
+    {% endfor %}
+  </table></div>
+  {% else %}<p class="hint">ไม่มีข้อมูล</p>{% endif %}
+</div>
+
+<div class="card">
+  <h2 style="margin:0 0 .5rem">เว็บที่เรียกบ่อยสุด 20 อันดับ</h2>
+  {% if domains %}
+  <div class="scroll"><table>
+    <tr><th>ชื่อเว็บ</th><th>จำนวนครั้ง</th></tr>
+    {% for r in domains %}
+    <tr><td class="wrap">{{ find(r.qname, 'dns') }}</td><td>{{ r.n }}</td></tr>
+    {% endfor %}
+  </table></div>
+  {% else %}<p class="hint">ไม่มีข้อมูล</p>{% endif %}
+</div>
+
+<div class="card">
+  <h2 style="margin:0 0 .5rem">session ในช่วงนี้ <span class="hint">(สูงสุด 100)</span></h2>
+  {% if sessions %}
+  <div class="scroll"><table>
+    <tr><th>เริ่ม</th><th>สิ้นสุด</th><th>IP</th><th>MAC</th><th>ชื่อเครื่อง</th>{% if kind == 'mac' %}<th>ลูกค้า</th>{% endif %}</tr>
+    {% for s in sessions %}
+    <tr><td>{{ s.authenticated_at.strftime('%d/%m %H:%M:%S') }}</td>
+      <td>{{ s.ended_at.strftime('%d/%m %H:%M:%S') if s.ended_at else 'ยังใช้งานอยู่' }}</td>
+      <td class="mono">{{ s.ip }}</td><td class="mono">{{ s.mac }}</td>
+      <td class="wrap">{{ s.hostname or '-' }}</td>
+      {% if kind == 'mac' %}<td class="mono">{{ s.natid_masked or '-' }}</td>{% endif %}</tr>
+    {% endfor %}
+  </table></div>
+  {% else %}<p class="hint">ไม่มี session ในช่วงนี้</p>{% endif %}
+</div>
+
+<script>
+  document.querySelectorAll('input[name=range]').forEach(function (el) {
+    el.addEventListener('change', function () {
+      document.getElementById('custom').style.display = el.value === 'custom' ? '' : 'none';
+    });
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}บันทึกการใช้งาน (audit){% endblock %}
+{% block body %}
+<style>
+  .ranges{display:flex;flex-wrap:wrap;gap:.4rem;margin:.4rem 0}
+  .ranges label{margin:0;font-weight:400;border:1px solid var(--line);border-radius:999px;
+                padding:.3rem .85rem;cursor:pointer}
+  .ranges input{display:none}
+  .ranges input:checked + span{font-weight:700;color:var(--accent)}
+  .ranges label:has(input:checked){border-color:var(--accent)}
+  .frow{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.75rem}
+  .muted{color:var(--muted)}
+  td.wrap{white-space:normal;overflow-wrap:anywhere;word-break:break-word;min-width:200px}
+  .btn-line{background:transparent;border:1px solid var(--line);color:var(--ink)}
+</style>
+
+<div class="card">
+  <h1>บันทึกการใช้งาน (audit log)</h1>
+  {% if error %}<div class="msg err">{{ error }}</div>{% endif %}
+
+  <form method="get">
+    <div class="frow">
+      <div><label for="staff">พนักงาน</label>
+        <select id="staff" name="staff">
+          <option value="">ทั้งหมด</option>
+          {% for u in staff_names %}<option value="{{ u }}" {{ 'selected' if params.staff == u }}>{{ u }}</option>{% endfor %}
+        </select></div>
+      <div><label for="action">การกระทำ</label>
+        <select id="action" name="action">
+          <option value="">ทั้งหมด</option>
+          {% for a in actions %}<option value="{{ a }}" {{ 'selected' if params.action == a }}>{{ a }}</option>{% endfor %}
+        </select></div>
+      <div><label for="client_ip">IP ผู้ใช้ (ตรงตัว)</label>
+        <input type="text" id="client_ip" name="client_ip" value="{{ params.client_ip }}" maxlength="45"
+               placeholder="เช่น 10.10.0.5"></div>
+      <div><label for="q">ข้อความในรายละเอียด</label>
+        <input type="text" id="q" name="q" value="{{ params.q }}" maxlength="100"></div>
+    </div>
+
+    <div class="ranges" role="radiogroup" aria-label="ช่วงเวลา">
+      {% for key, label in ranges.items() %}
+      <label><input type="radio" name="range" value="{{ key }}" {{ 'checked' if params.range == key }}><span>{{ label }}</span></label>
+      {% endfor %}
+    </div>
+    <div id="custom" class="grid" style="grid-template-columns:1fr 1fr;{{ '' if params.range == 'custom' else 'display:none' }}">
+      <div><label for="start">ตั้งแต่</label>
+        <input type="datetime-local" id="start" name="start" value="{{ params.start }}"></div>
+      <div><label for="end">ถึง</label>
+        <input type="datetime-local" id="end" name="end" value="{{ params.end }}"></div>
+    </div>
+    <p style="margin-top:.75rem"><button type="submit">ค้นหา</button></p>
+  </form>
+  <p class="hint">เฉพาะผู้ดูแลระบบ · การเปิดดูหน้านี้ถูกบันทึกเป็น view_audit ทุกครั้ง · ค้นได้ครั้งละไม่เกิน 31 วัน</p>
+</div>
+
+{% if start_dt %}
+<div class="card">
+  <h2 style="margin:0 0 .5rem">ผลลัพธ์
+    <span class="hint">{{ start_dt.strftime('%d/%m %H:%M') }} – {{ end_dt.strftime('%d/%m %H:%M') }}
+      · หน้า {{ page }}{{ ' · มีต่อ' if has_next }}</span></h2>
+  {% if not rows %}
+    <p class="hint" style="text-align:center;padding:1rem 0">ไม่พบรายการในช่วงเวลานี้</p>
+  {% else %}
+  <div style="overflow-x:auto">
+  <table>
+    <tr><th>เวลา</th><th>พนักงาน</th><th>การกระทำ</th><th>เป้าหมาย</th><th>IP</th><th>รายละเอียด</th></tr>
+    {% for r in rows %}
+    <tr>
+      <td>{{ r.ts.strftime('%d/%m %H:%M:%S') }}</td>
+      <td>{% if r.staff_username %}{{ r.staff_username }}{% elif r.staff_id %}<span class="muted">#{{ r.staff_id }}</span>{% else %}<span class="muted">-</span>{% endif %}</td>
+      <td class="mono">{{ r.action }}</td>
+      <td class="wrap">{{ r.target or '-' }}</td>
+      <td class="mono">{{ r.client_ip or '-' }}</td>
+      <td class="wrap">{{ r.detail or '-' }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+  {% endif %}
+
+  <p style="margin-top:1rem;display:flex;gap:.5rem">
+    {% if has_prev %}
+    <a class="btn btn-line" href="{{ url_for('audit_log_page', **dict(params, page=page-1)) }}">← ใหม่กว่า</a>
+    {% endif %}
+    {% if has_next %}
+    <a class="btn btn-line" href="{{ url_for('audit_log_page', **dict(params, page=page+1)) }}">เก่ากว่า →</a>
+    {% endif %}
+  </p>
+</div>
+{% endif %}
+
+<script>
+  document.querySelectorAll('input[name=range]').forEach(function (el) {
+    el.addEventListener('change', function () {
+      document.getElementById('custom').style.display = el.value === 'custom' ? '' : 'none';
+    });
+  });
+</script>
+{% endblock %}

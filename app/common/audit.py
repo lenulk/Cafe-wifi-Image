@@ -23,6 +23,8 @@ DISK_ALERT = "disk_alert"  # N1 (CODING_BRIEF.md) -- ดิสก์เต็ม
 ERASE_REFUSED = "erase_refused"  # N33 -- ปฏิเสธคำขอลบเพราะยังอยู่ในช่วงเก็บบังคับตาม ม.26
 ERASE_CUSTOMER = "erase_customer"  # N6 (CODING_BRIEF.md) -- DSR: ลบข้อมูลรายบุคคลตามคำขอ (PDPA §6.2 ข้อ 6)
 SEARCH_LOG = "search_log"  # N9 (CODING_BRIEF.md) -- ค้น conn_log/dns_log ใน Admin ต้องมีร่องรอยทุกครั้งตาม PDPA
+SUGGEST_NATID = "suggest_natid"  # ช่องค้น log: admin พิมพ์เลขบัตรบางส่วนแล้วระบบถอดรหัสทั้งร้านเพื่อแนะนำ -- ลงหนึ่งแถวต่อคำขอ (ไม่ลงเลขที่พิมพ์)
+VIEW_NATID_LOG = "view_natid_log"  # admin เห็นเลขบัตรเต็มในหน้าค้นหา log -- 1 แถวต่อหน้า ลงแค่จำนวน (ไม่ลงตัวเลข); CSV ใช้ EXPORT_LOG + natid_full=n
 BYPASS_DETECTED = "bypass_detected"  # N10 (CODING_BRIEF.md) -- T17: ตรวจพบอุปกรณ์แปลกปลอมในวง uplink
 LOG_GAP = "log_gap"  # N31 -- เหตุการณ์จราจรบางส่วนถูกทิ้ง (ENOBUFS/DB ล่ม) หลักฐานช่วงนั้นไม่ครบ
 INTEGRITY_FAILED = "integrity_failed"  # N21 -- hash chain ของ log ไม่ตรง = หลักฐานถูกแก้ไขย้อนหลัง
